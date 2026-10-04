@@ -1,313 +1,70 @@
 (() => {
-  const canvas = document.getElementById('world');
-  const mapCanvas = document.getElementById('minimap');
-  const ctx = canvas.getContext('2d');
-  const mapCtx = mapCanvas.getContext('2d');
-  const world = { width: 1800, height: 1200 };
-  const player = { x: 900, y: 600, speed: 230, radius: 11, health: 100, radiation: 0, money: 1200 };
-  const keys = new Set();
-  const camera = { x: 0, y: 0 };
-  const points = [
-    { x: 1255, y: 340, name: 'Заброшенное здание', type: 'building', radius: 72, message: 'Внутри пусто. На стене осталась выцветшая карта старого периметра.' },
-    { x: 510, y: 515, name: 'Лагерь у дороги', type: 'camp', radius: 68, message: 'У костра можно перевести дух. Здоровье восстановлено, дозиметр очищен.' },
-    { x: 1450, y: 930, name: 'Полевая аномалия', type: 'anomaly', radius: 170, message: 'Воздух дрожит от жара. Дозиметр трещит — не задерживайся.' },
-    { x: 865, y: 865, name: 'Тайник под плитой', type: 'stash', radius: 62, message: 'В тайнике нашлись аптечка и несколько мятых купюр.' },
-  ];
-  const objective = { x: 1544, y: 267.5, radius: 100, complete: false };
-  const obstacles = [
-    { x: 355, y: 250, w: 170, h: 110, kind: 'building' },
-    { x: 1220, y: 290, w: 132, h: 106, kind: 'building' },
-    { x: 1265, y: 680, w: 215, h: 120, kind: 'ruin' },
-    { x: 680, y: 850, w: 115, h: 82, kind: 'ruin' },
-    { x: 1500, y: 190, w: 88, h: 155, kind: 'tower' },
-    { x: 270, y: 690, w: 105, h: 76, kind: 'boulder' },
-    { x: 1025, y: 275, w: 120, h: 42, kind: 'fence' },
-    { x: 1030, y: 315, w: 38, h: 92, kind: 'fence' },
-    { x: 580, y: 970, w: 180, h: 34, kind: 'fence' },
-    { x: 1620, y: 730, w: 84, h: 84, kind: 'boulder' },
-  ];
-  let previousTime = 0;
-  let messageTime = 0;
-  let stashFound = false;
-  let collapsed = false;
-
-  function worldToScreen(x, y) { return { x: x - camera.x, y: y - camera.y }; }
-
-  function drawTerrain() {
-    ctx.fillStyle = '#394833'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const tile = 48;
-    const startX = Math.floor(camera.x / tile) * tile;
-    const startY = Math.floor(camera.y / tile) * tile;
-    for (let y = startY; y < camera.y + canvas.height + tile; y += tile) {
-      for (let x = startX; x < camera.x + canvas.width + tile; x += tile) {
-        const variation = (Math.floor(x / tile) * 13 + Math.floor(y / tile) * 7) % 5;
-        ctx.fillStyle = variation === 0 ? '#414d38' : variation === 1 ? '#354232' : '#3d4936';
-        ctx.fillRect(x - camera.x, y - camera.y, tile - 1, tile - 1);
-      }
-    }
-    // Worn dirt tracks connect the camps and old structures.
-    ctx.beginPath(); ctx.moveTo(35 - camera.x, 1000 - camera.y);
-    ctx.bezierCurveTo(310 - camera.x, 820 - camera.y, 615 - camera.x, 930 - camera.y, 850 - camera.x, 710 - camera.y);
-    ctx.bezierCurveTo(1050 - camera.x, 525 - camera.y, 1250 - camera.x, 620 - camera.y, 1760 - camera.x, 215 - camera.y);
-    ctx.strokeStyle = '#625f48'; ctx.lineWidth = 34; ctx.lineCap = 'round'; ctx.stroke();
-    ctx.strokeStyle = '#827958'; ctx.lineWidth = 2; ctx.setLineDash([10, 13]); ctx.stroke(); ctx.setLineDash([]);
-    // Secondary path to the anomaly field.
-    ctx.beginPath(); ctx.moveTo(1110 - camera.x, 510 - camera.y); ctx.quadraticCurveTo(1340 - camera.x, 660 - camera.y, 1450 - camera.x, 930 - camera.y);
-    ctx.strokeStyle = '#625f48'; ctx.lineWidth = 22; ctx.stroke();
-    ctx.strokeStyle = '#827958'; ctx.lineWidth = 1; ctx.setLineDash([7, 12]); ctx.stroke(); ctx.setLineDash([]);
-    // Fixed grass and stones make the scene stable while the camera moves.
-    for (let i = 0; i < 190; i++) {
-      const x = (i * 197 + 73) % world.width, y = (i * 131 + 39) % world.height;
-      const sx = x - camera.x, sy = y - camera.y;
-      if (sx < -10 || sy < -10 || sx > canvas.width + 10 || sy > canvas.height + 10) continue;
-      ctx.fillStyle = i % 4 === 0 ? '#69734b' : i % 3 === 0 ? '#303b30' : '#515e3c';
-      ctx.beginPath(); ctx.ellipse(sx, sy, 3 + i % 5, 2 + i % 3, i % 2, 0, Math.PI * 2); ctx.fill();
-      if (i % 3 === 0) {
-        ctx.strokeStyle = '#768052'; ctx.lineWidth = 1; ctx.beginPath();
-        ctx.moveTo(sx, sy); ctx.lineTo(sx + (i % 2 ? 3 : -3), sy - 5 - i % 4); ctx.stroke();
-      }
-    }
-  }
-
-  function drawObstacle(item) {
-    const { x, y } = worldToScreen(item.x, item.y);
-    if (x + item.w < 0 || y + item.h < 0 || x > canvas.width || y > canvas.height) return;
-    if (item.kind === 'fence') {
-      ctx.fillStyle = '#796b4d'; ctx.fillRect(x, y, item.w, item.h);
-      ctx.strokeStyle = '#a18c5b'; ctx.lineWidth = 2;
-      if (item.w > item.h) {
-        for (let px = 0; px <= item.w; px += 18) { ctx.beginPath(); ctx.moveTo(x + px, y - 4); ctx.lineTo(x + px, y + item.h + 4); ctx.stroke(); }
-      } else {
-        for (let py = 0; py <= item.h; py += 18) { ctx.beginPath(); ctx.moveTo(x - 4, y + py); ctx.lineTo(x + item.w + 4, y + py); ctx.stroke(); }
-      }
-      return;
-    }
-    if (item.kind === 'boulder') {
-      ctx.fillStyle = '#262e28'; ctx.beginPath(); ctx.ellipse(x + item.w / 2 + 4, y + item.h / 2 + 7, item.w / 2, item.h / 2, -.15, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#69705b'; ctx.beginPath(); ctx.ellipse(x + item.w / 2, y + item.h / 2, item.w / 2, item.h / 2, -.15, 0, Math.PI * 2); ctx.fill(); return;
-    }
-    if (item.kind === 'tower') {
-      const cx = x + item.w / 2, top = y + 16, base = y + item.h - 7;
-      ctx.fillStyle = '#222a24'; ctx.fillRect(cx - 5, top + 5, 10, base - top);
-      ctx.strokeStyle = '#887653'; ctx.lineWidth = 4; ctx.beginPath();
-      ctx.moveTo(cx - 34, base); ctx.lineTo(cx - 15, top); ctx.lineTo(cx + 15, top); ctx.lineTo(cx + 34, base);
-      ctx.moveTo(cx - 25, base - 34); ctx.lineTo(cx + 25, base - 34); ctx.moveTo(cx - 19, base - 65); ctx.lineTo(cx + 19, base - 65);
-      ctx.moveTo(cx - 15, top); ctx.lineTo(cx + 15, base); ctx.moveTo(cx + 15, top); ctx.lineTo(cx - 15, base); ctx.stroke();
-      ctx.fillStyle = '#e1d6b8'; ctx.font = '10px monospace'; ctx.fillText('СТАРАЯ ВЫШКА', x - 5, base + 17);
-      return;
-    }
-    ctx.fillStyle = '#222a24'; ctx.fillRect(x + 7, y + 9, item.w, item.h);
-    ctx.fillStyle = item.kind === 'ruin' ? '#59604e' : '#53604b'; ctx.fillRect(x, y, item.w, item.h);
-    ctx.fillStyle = '#70745a'; ctx.fillRect(x + 5, y + 5, item.w - 10, 7);
-    ctx.strokeStyle = '#30382f'; ctx.lineWidth = 3; ctx.strokeRect(x + 1, y + 1, item.w - 2, item.h - 2);
-    ctx.fillStyle = '#303a32'; ctx.fillRect(x + item.w * .57, y + item.h * .48, 19, item.h * .45);
-    if (item.kind === 'ruin') {
-      ctx.strokeStyle = '#30382f'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x + item.w * .25, y); ctx.lineTo(x + item.w * .31, y + item.h * .35); ctx.lineTo(x + item.w * .23, y + item.h * .58); ctx.stroke();
-    }
-  }
-
-  function drawPoint(point, time) {
-    const { x, y } = worldToScreen(point.x, point.y);
-    if (x < -95 || y < -95 || x > canvas.width + 95 || y > canvas.height + 95) return;
-    if (point.type === 'anomaly') {
-      const pulse = 0.72 + Math.sin(time / 280) * .12;
-      ctx.fillStyle = `rgba(198, 151, 87, ${0.09 * pulse})`; ctx.beginPath(); ctx.arc(x, y, point.radius, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = `rgba(210, 163, 94, ${0.25 * pulse})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 22 + Math.sin(time / 200) * 4, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = '#e0ad68'; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
-    } else if (point.type === 'camp') {
-      ctx.fillStyle = '#b87846'; ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#d5a16b'; ctx.beginPath(); ctx.arc(x, y - 2, 3, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#817451'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x - 14, y + 8); ctx.lineTo(x + 14, y + 8); ctx.moveTo(x - 10, y + 4); ctx.lineTo(x + 10, y + 11); ctx.stroke();
-    } else if (point.type === 'stash') {
-      ctx.fillStyle = stashFound ? '#59604c' : '#c29a5e'; ctx.fillRect(x - 7, y - 5, 14, 11);
-      ctx.strokeStyle = '#252c24'; ctx.lineWidth = 2; ctx.strokeRect(x - 7, y - 5, 14, 11); ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y + 6); ctx.stroke();
-    } else {
-      ctx.strokeStyle = '#887653'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x - 21, y + 24); ctx.lineTo(x, y - 35); ctx.lineTo(x + 21, y + 24); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x - 12, y - 10); ctx.lineTo(x + 12, y - 10); ctx.moveTo(x - 16, y + 7); ctx.lineTo(x + 16, y + 7); ctx.stroke();
-      ctx.fillStyle = '#746b50'; ctx.fillRect(x - 24, y + 22, 48, 5);
-    }
-    ctx.fillStyle = '#e1d6b8'; ctx.font = '10px monospace'; ctx.fillText(point.name, x + 11, y - 9);
-  }
-
-  function drawBoundary() {
-    ctx.strokeStyle = '#b0a071'; ctx.lineWidth = 5;
-    ctx.strokeRect(-camera.x + 2, -camera.y + 2, world.width - 4, world.height - 4);
-    ctx.strokeStyle = '#343d32'; ctx.lineWidth = 2;
-    for (let x = 22; x < world.width; x += 40) {
-      ctx.beginPath(); ctx.moveTo(x - camera.x, -camera.y); ctx.lineTo(x - camera.x, 14 - camera.y); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x - camera.x, world.height - 14 - camera.y); ctx.lineTo(x - camera.x, world.height - camera.y); ctx.stroke();
-    }
-    for (let y = 22; y < world.height; y += 40) {
-      ctx.beginPath(); ctx.moveTo(-camera.x, y - camera.y); ctx.lineTo(14 - camera.x, y - camera.y); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(world.width - 14 - camera.x, y - camera.y); ctx.lineTo(world.width - camera.x, y - camera.y); ctx.stroke();
-    }
-  }
-
-  function drawPlayer() {
-    const { x, y } = worldToScreen(player.x, player.y);
-    ctx.fillStyle = 'rgba(10, 14, 10, .42)'; ctx.beginPath(); ctx.ellipse(x + 2, y + 7, 12, 6, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#d9e59c'; ctx.beginPath(); ctx.arc(x, y, player.radius + 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#263222'; ctx.beginPath(); ctx.arc(x, y, player.radius, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#d9e59c'; ctx.beginPath(); ctx.moveTo(x, y - 16); ctx.lineTo(x - 5, y - 7); ctx.lineTo(x + 5, y - 7); ctx.fill();
-  }
-
-  function drawWorld(time) {
-    camera.x = Math.max(0, Math.min(world.width - canvas.width, player.x - canvas.width / 2));
-    camera.y = Math.max(0, Math.min(world.height - canvas.height, player.y - canvas.height / 2));
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawTerrain();
-    obstacles.forEach(drawObstacle);
-    points.forEach((point) => drawPoint(point, time));
-    drawBoundary();
-    drawPlayer();
-  }
-
-  function drawMap() {
-    const sx = mapCanvas.width / world.width, sy = mapCanvas.height / world.height;
-    mapCtx.fillStyle = '#263426'; mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
-    mapCtx.strokeStyle = '#625f48'; mapCtx.lineWidth = 6; mapCtx.beginPath();
-    mapCtx.moveTo(3, 108); mapCtx.bezierCurveTo(38, 88, 58, 101, 85, 77); mapCtx.bezierCurveTo(111, 51, 130, 65, 177, 16); mapCtx.stroke();
-    mapCtx.beginPath(); mapCtx.moveTo(112, 55); mapCtx.quadraticCurveTo(139, 72, 145, 101); mapCtx.stroke();
-    obstacles.forEach((item) => {
-      mapCtx.fillStyle = item.kind === 'fence' ? '#8b7953' : '#59604e';
-      mapCtx.fillRect(item.x * sx, item.y * sy, Math.max(3, item.w * sx), Math.max(3, item.h * sy));
-    });
-    points.forEach((point) => {
-      mapCtx.fillStyle = point.type === 'anomaly' ? '#e0ad68' : point.type === 'camp' ? '#85a77b' : '#d58c54';
-      mapCtx.beginPath(); mapCtx.arc(point.x * sx, point.y * sy, point.type === 'anomaly' ? 4 : 3, 0, Math.PI * 2); mapCtx.fill();
-    });
-    mapCtx.fillStyle = objective.complete ? '#d9e59c' : '#e4c577';
-    mapCtx.beginPath(); mapCtx.arc(objective.x * sx, objective.y * sy, 4, 0, Math.PI * 2); mapCtx.fill();
-    mapCtx.strokeStyle = 'rgba(217, 229, 156, .55)'; mapCtx.lineWidth = 1;
-    mapCtx.strokeRect(camera.x * sx, camera.y * sy, canvas.width * sx, canvas.height * sy);
-    mapCtx.fillStyle = '#d9e59c'; mapCtx.beginPath(); mapCtx.arc(player.x * sx, player.y * sy, 3.5, 0, Math.PI * 2); mapCtx.fill();
-  }
-
-  function getNearbyPoint() {
-    let nearest = null, nearestDistance = Infinity;
-    points.forEach((point) => {
-      const distance = Math.hypot(point.x - player.x, point.y - player.y);
-      if (distance < point.radius && distance < nearestDistance) { nearest = point; nearestDistance = distance; }
-    });
-    return nearest;
-  }
-
-  function getLocation() {
-    const camp = points[1], building = points[0], anomaly = points[2];
-    if (Math.hypot(player.x - camp.x, player.y - camp.y) < 150) return 'Лагерь у дороги';
-    if (Math.hypot(player.x - anomaly.x, player.y - anomaly.y) < 205) return 'Полевая аномалия';
-    if (Math.hypot(player.x - building.x, player.y - building.y) < 170) return 'Старое здание';
-    if (Math.hypot(player.x - objective.x, player.y - objective.y) < objective.radius * 1.5) return 'Старая вышка';
-    if (player.x < 600) return 'Западный тракт';
-    if (player.x > 1250) return 'Восточный перелесок';
-    return 'Серая долина';
-  }
-
-  function showMessage(text) {
-    messageTime = 5;
-    const element = document.getElementById('game-message');
-    element.textContent = text; element.classList.add('visible');
-  }
-
-  function interact() {
-    const point = getNearbyPoint();
-    if (!point) return;
-    if (point.type === 'stash') {
-      if (stashFound) { showMessage('Тайник пуст. Здесь больше ничего нет.'); return; }
-      stashFound = true; player.money += 450; player.health = Math.min(100, player.health + 25);
-      showMessage(point.message + ' +450 ₽'); return;
-    }
-    if (point.type === 'camp') {
-      player.health = Math.min(100, player.health + 30);
-      player.radiation = Math.max(0, player.radiation - 35);
-    }
-    showMessage(point.message);
-  }
-
-  function updateObjective() {
-    const distance = Math.hypot(objective.x - player.x, objective.y - player.y);
-    if (!objective.complete && distance <= objective.radius) {
-      objective.complete = true;
-      showMessage('Цель выполнена: ты подошёл к старой вышке.');
-    }
-    document.getElementById('objective-title').textContent = objective.complete ? 'Вышка осмотрена' : 'Подойти к старой вышке';
-    document.getElementById('objective-description').textContent = objective.complete ? 'Вы достигли восточного периметра' : 'Ориентир на востоке сектора';
-    document.getElementById('objective-progress-bar').style.width = objective.complete ? '100%' : '8%';
-    document.getElementById('objective-status').textContent = objective.complete ? 'ЦЕЛЬ ВЫПОЛНЕНА' : 'ЦЕЛЬ АКТИВНА';
-  }
-
-  function updateHud() {
-    document.getElementById('coord-x').textContent = Math.round(player.x);
-    document.getElementById('coord-y').textContent = Math.round(player.y);
-    const location = getLocation();
-    document.getElementById('location-name').textContent = location;
-    document.getElementById('sector-name').textContent = location.toLocaleUpperCase('ru-RU');
-    document.getElementById('health-value').textContent = `${Math.round(player.health)}%`;
-    document.getElementById('health-bar').style.width = `${player.health}%`;
-    document.getElementById('radiation-value').textContent = `${Math.round(player.radiation)}%`;
-    document.getElementById('radiation-bar').style.width = `${player.radiation}%`;
-    document.getElementById('radiation-bar').classList.toggle('danger', player.radiation >= 65);
-    document.getElementById('cash-value').textContent = `${player.money.toLocaleString('ru-RU')} ₽`;
-    updateObjective();
-    const nearby = getNearbyPoint();
-    const prompt = document.getElementById('interaction-prompt');
-    prompt.hidden = !nearby;
-    if (nearby) document.getElementById('interaction-label').textContent = nearby.type === 'stash' ? (stashFound ? 'Проверить тайник' : 'Открыть тайник') : `Осмотреть: ${nearby.name}`;
-  }
-
-  function isBlocked(x, y) {
-    return obstacles.some((item) => {
-      const closestX = Math.max(item.x, Math.min(x, item.x + item.w));
-      const closestY = Math.max(item.y, Math.min(y, item.y + item.h));
-      return Math.hypot(x - closestX, y - closestY) < player.radius;
-    });
-  }
-
-  function frame(time) {
-    const delta = Math.min((time - previousTime) / 1000 || 0, 0.05);
-    previousTime = time;
-    const anomaly = points[2];
-    const distanceToAnomaly = Math.hypot(anomaly.x - player.x, anomaly.y - player.y);
-    player.radiation = Math.max(0, Math.min(100, player.radiation + (distanceToAnomaly < anomaly.radius ? 13 : -4.5) * delta));
-    if (player.radiation > 68 && player.health > 0) player.health = Math.max(0, player.health - (player.radiation - 68) * .035 * delta);
-    if (player.health <= 0 && !collapsed) { collapsed = true; showMessage('Ты потерял сознание. Доберись до лагеря, чтобы прийти в себя.'); }
-    if (player.health > 0) {
-      let dx = 0, dy = 0;
-      if (keys.has('w') || keys.has('arrowup')) dy -= 1;
-      if (keys.has('s') || keys.has('arrowdown')) dy += 1;
-      if (keys.has('a') || keys.has('arrowleft')) dx -= 1;
-      if (keys.has('d') || keys.has('arrowright')) dx += 1;
-      if (dx || dy) {
-        const length = Math.hypot(dx, dy);
-        const nextX = Math.max(player.radius, Math.min(world.width - player.radius, player.x + dx / length * player.speed * delta));
-        const nextY = Math.max(player.radius, Math.min(world.height - player.radius, player.y + dy / length * player.speed * delta));
-        if (!isBlocked(nextX, player.y)) player.x = nextX;
-        if (!isBlocked(player.x, nextY)) player.y = nextY;
-      }
-    }
-    if (messageTime > 0) {
-      messageTime -= delta;
-      if (messageTime <= 0) document.getElementById('game-message').classList.remove('visible');
-    }
-    drawWorld(time); drawMap(); updateHud();
-    window.requestAnimationFrame(frame);
-  }
-
-  function normalizeKey(event) {
-    const physicalKeys = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', KeyE: 'e' };
-    return physicalKeys[event.code] || event.key.toLowerCase();
-  }
-
-  window.addEventListener('keydown', (event) => {
-    const key = normalizeKey(event);
-    if (key === 'e') { event.preventDefault(); if (!event.repeat) interact(); return; }
-    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(key)) {
-      event.preventDefault(); keys.add(key);
-    }
-  });
-  window.addEventListener('keyup', (event) => keys.delete(normalizeKey(event)));
-  window.addEventListener('blur', () => keys.clear());
-  document.getElementById('clock').textContent = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date());
-  drawWorld(0); drawMap(); updateHud();
-  window.requestAnimationFrame(frame);
+  'use strict';
+  const catalog=window.ZoneRPGItems, UI=window.ZoneRPGUI, canvas=document.getElementById('world'),ctx=canvas.getContext('2d'),mini=document.getElementById('minimap'),mc=mini.getContext('2d');
+  const world={w:1800,h:1200},SAVE='zonerpg-save-v2',keys=new Set(),camera={x:0,y:0};
+  const obstacles=[{x:355,y:250,w:170,h:110,k:'building'},{x:1220,y:290,w:132,h:106,k:'building'},{x:1265,y:680,w:215,h:120,k:'ruin'},{x:680,y:850,w:115,h:82,k:'ruin'},{x:1500,y:190,w:88,h:155,k:'tower'},{x:270,y:690,w:105,h:76,k:'rock'},{x:1025,y:275,w:120,h:42,k:'fence'},{x:1030,y:315,w:38,h:92,k:'fence'},{x:580,y:970,w:180,h:34,k:'fence'},{x:1620,y:730,w:84,h:84,k:'rock'}];
+  const points=[{x:1255,y:340,name:'Заброшенное здание',type:'building',radius:72},{x:510,y:515,name:'Лагерь у дороги',type:'camp',radius:68},{x:1450,y:930,name:'Полевая аномалия',type:'anomaly',radius:130},{x:865,y:865,name:'Тайник под плитой',type:'stash',radius:62}];
+  const anomalyFields=[{x:1450,y:930,r:145,power:13},{x:1100,y:680,r:76,power:8},{x:430,y:920,r:62,power:6}];
+  let s;
+  const emptyState=()=>({player:{x:900,y:600,speed:230,radius:11,health:100,rad:0,money:1200},inventory:[{id:'pm',qty:1},{id:'ammo9',qty:32},{id:'medkit',qty:2},{id:'antirad',qty:2},{id:'bread',qty:2}],equipped:'pm',mag:{pm:8,shotgun:0,rifle:0},quests:catalog.quests.map(q=>({...q,progress:0,done:false})),stash:[{id:'medkit',qty:1},{id:'ammo9',qty:12},{id:'artifact_spark',qty:1}],stashTaken:false,buildingSeen:false,kills:0,enemies:seedEnemies(),corpses:[],shop:{money:5000,stock:[{id:'ammo9',qty:50,buy:10},{id:'medkit',qty:6,buy:220},{id:'antirad',qty:5,buy:290},{id:'shotgun',qty:2,buy:1800},{id:'shells',qty:28,buy:20},{id:'rifle',qty:1,buy:4200},{id:'ammo545',qty:48,buy:18},{id:'bandage',qty:8,buy:90},{id:'water',qty:6,buy:55},{id:'artifact_medusa',qty:1,buy:1800}]},settings:{sound:false,scale:1},mode:'menu'});
+  function seedEnemies(){return [{id:1,type:'bandit',x:690,y:405,hp:70,attack:0,alive:true},{id:2,type:'mutant',x:1080,y:760,hp:100,attack:0,alive:true},{id:3,type:'guard',x:1510,y:550,hp:125,attack:0,alive:true},{id:4,type:'bandit',x:355,y:830,hp:70,attack:0,alive:true}];}
+  function safeText(id,text){const e=document.getElementById(id);if(e)e.textContent=text;}
+  function inv(id){return s.inventory.find(x=>x.id===id);}
+  function add(id,qty=1){let x=inv(id);if(x)x.qty+=qty;else s.inventory.push({id,qty});}
+  function remove(id,qty=1){const x=inv(id);if(!x||x.qty<qty)return false;x.qty-=qty;if(!x.qty)s.inventory=s.inventory.filter(a=>a!==x);return true;}
+  function weight(){return s.inventory.reduce((n,x)=>n+(catalog.items[x.id]?.weight||0)*x.qty,0);}
+  function say(t){UI.showMessage(t);}
+  function quest(id,n=1){const q=s.quests.find(x=>x.id===id);if(!q||q.done)return;q.progress=Math.min(q.goal,q.progress+n);if(q.progress>=q.goal){q.done=true;s.player.money+=q.reward;say(`Задание выполнено: ${q.title} · +${q.reward} ₽`);}}
+  function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+  function save(){try{localStorage.setItem(SAVE,JSON.stringify(s));say('Сохранение записано в этом браузере.');return true;}catch(e){say('Не удалось сохранить игру: хранилище недоступно.');return false;}}
+  function hasSave(){try{return !!localStorage.getItem(SAVE);}catch{return false;}}
+  function load(){try{const x=JSON.parse(localStorage.getItem(SAVE));if(!x||!x.player)throw Error();s={...emptyState(),...x,settings:{...emptyState().settings,...x.settings},mode:'play'};say('Сохранение загружено.');return true;}catch{s=emptyState();s.mode='play';say('Сохранение не найдено. Начинаем новую вылазку.');return false;}}
+  function newGame(){s=emptyState();s.mode='play';say('Вылазка началась. Старую вышку видно на востоке.');}
+  function resetSave(){try{localStorage.removeItem(SAVE);say('Локальное сохранение удалено.');}catch{}}
+  function pause(){if(s.mode==='play')s.mode='pause';keys.clear();}
+  function resume(){if(s.mode==='pause')s.mode='play';}
+  function use(i){const x=s.inventory[i];if(!x)return;const d=catalog.items[x.id];if(x.id==='medkit'){s.player.health=Math.min(100,s.player.health+45);remove(x.id);say('Аптечка использована: +45 здоровья.');}else if(x.id==='antirad'){s.player.rad=Math.max(0,s.player.rad-55);remove(x.id);say('Антирад снизил радиацию.');}else if(x.id==='bandage'){s.player.health=Math.min(100,s.player.health+18);remove(x.id);say('Бинт использован.');}else if(x.id==='bread'){s.player.health=Math.min(100,s.player.health+8);remove(x.id);say('Хлеб помог немного восстановить силы.');}else if(x.id==='water'){remove(x.id);say('Ты выпил воду.');}else say(`${d.name} нельзя использовать сейчас.`);}
+  function equip(i){const x=s.inventory[i];if(x&&catalog.items[x.id].type==='weapon'){s.equipped=x.id;s.mag[x.id]??=0;say(`${catalog.items[x.id].name} готово.`);}}
+  function drop(i){const x=s.inventory[i];if(x){if(x.id===s.equipped)return say('Убери оружие в рюкзак перед тем, как выбросить его.');remove(x.id,1);say(`Выброшено: ${catalog.items[x.id].name}.`);}}
+  function buy(id){const row=s.shop.stock.find(x=>x.id===id);if(!row||row.qty<1)return say('У торговца закончился этот товар.');if(s.player.money<row.buy)return say('Не хватает денег.');if(weight()+catalog.items[id].weight>24)return say('Рюкзак перегружен.');s.player.money-=row.buy;s.shop.money+=row.buy;row.qty--;add(id);say(`Куплено: ${catalog.items[id].name}.`);}
+  function sell(id){const x=inv(id);if(!x)return say('Такого предмета нет в рюкзаке.');if(id===s.equipped)return say('Убери оружие в рюкзак перед продажей.');const price=Math.max(1,Math.round(catalog.items[id].value*.55));if(s.shop.money<price)return say('У торговца не хватает наличности.');remove(id);s.player.money+=price;s.shop.money-=price;let row=s.shop.stock.find(a=>a.id===id);if(row)row.qty++;else s.shop.stock.push({id,qty:1,buy:Math.round(price*1.7)});say(`Продано: ${catalog.items[id].name} · +${price} ₽`);}
+  function deliver(){const q=s.quests.find(x=>x.id==='parts');if(!q||q.done)return say('Торговцу пока нечего поручить.');if((inv('scrap')?.qty||0)<3)return say('Нужно 3 электронных блока. Ищи их у противников.');remove('scrap',3);quest('parts',3);}
+  let lootTarget=null;
+  function getLoot(){return lootTarget?{title:lootTarget.title,description:lootTarget.description,items:lootTarget.items}: {title:'Тайник',description:'Содержимое найденного тайника.',items:[]};}
+  function take(id){if(!lootTarget)return;const row=lootTarget.items.find(x=>x.id===id);if(!row)return;if(weight()+catalog.items[id].weight>24)return say('В рюкзаке нет места.');add(id);row.qty--;lootTarget.items=lootTarget.items.filter(x=>x.qty>0);say(`Подобрано: ${catalog.items[id].name}.`);if(!lootTarget.items.length&&lootTarget.corpse){lootTarget.corpse.looted=true;}}
+  function rest(){s.player.health=100;s.player.rad=Math.max(0,s.player.rad-45);s.player.money=Math.max(0,s.player.money-35);say('Ты отдохнул у костра · здоровье восстановлено · радиация снижена · 35 ₽ за припасы.');}
+  function setSetting(k,v){s.settings[k]=v;document.documentElement.style.setProperty('--ui-scale',s.settings.scale);}
+  function mainMenu(){s.mode='menu';keys.clear();}
+  const api={catalog,hasSave,getState:()=>({...s,weight:weight()}),save,load,newGame,mainMenu,pause,resetSave,resume,use,equip,drop,buy,sell,deliver,rest,setSetting,getTrade:()=>({money:s.player.money,stock:s.shop.stock}),getLoot,take};window.ZoneRPG=api;
+  function blocked(x,y,r=11){return obstacles.some(o=>{let a=Math.max(o.x,Math.min(x,o.x+o.w)),b=Math.max(o.y,Math.min(y,o.y+o.h));return Math.hypot(x-a,y-b)<r;});}
+  function move(ent,dx,dy,r=11){const nx=Math.max(r,Math.min(world.w-r,ent.x+dx)),ny=Math.max(r,Math.min(world.h-r,ent.y+dy));if(!blocked(nx,ent.y,r))ent.x=nx;if(!blocked(ent.x,ny,r))ent.y=ny;}
+  function nearest(){let result=null,dist=Infinity;for(const p of points){const d=distance(p,s.player);if(d<p.radius&&d<dist){result=p;dist=d;}}for(const e of s.corpses){if(e.looted)continue;const d=distance(e,s.player);if(d<48&&d<dist){result=e;dist=d;}}return result;}
+  function interact(){const p=nearest();if(!p)return;if(p.type==='stash'){if(!s.stashTaken){s.stashTaken=true;lootTarget={title:'Тайник под плитой',description:'Защитная коробка спрятана под обломком.',items:s.stash};quest('stash');}else lootTarget={title:'Тайник под плитой',description:'Тайник уже обыскан.',items:[]};UI.open('loot');return;}if(p.type==='camp'){UI.open('camp');return;}if(p.corpse){lootTarget={title:`Обыскать: ${catalog.enemies[p.type].name}`,description:'Снаряжение поверженного противника.',items:p.loot};UI.open('loot');return;}if(p.type==='building'){if(!s.buildingSeen){s.buildingSeen=true;quest('building');say('Ты осмотрел здание. В пыли остались свежие следы.');}else say('Заброшенное здание давно разграблено.');return;}if(p.type==='anomaly'){say('Дозиметр трещит. В этой зоне радиация быстро накапливается.');return;}}
+  function updateQuest(){const q=s.quests.find(x=>x.id==='tower');if(q&&!q.done&&distance({x:1544,y:267},s.player)<100)quest('tower');}
+  function shoot(targetX,targetY){if(s.mode!=='play')return;const gun=catalog.weapons[s.equipped];if(!gun)return;if(fireCooldown>0)return;if(!s.mag[s.equipped]){say('Магазин пуст. Нажми R для перезарядки.');return;}s.mag[s.equipped]--;fireCooldown=gun.rate;flash=0.09;const origin={x:s.player.x,y:s.player.y};const vx=targetX-origin.x,vy=targetY-origin.y,len=Math.hypot(vx,vy)||1;let hit=null,best=gun.range;for(const e of s.enemies){if(!e.alive)continue;const ex=e.x-origin.x,ey=e.y-origin.y,along=(ex*vx+ey*vy)/len;if(along<0||along>best)continue;const lateral=Math.abs(ex*vy-ey*vx)/len;if(lateral<16){hit=e;best=along;}}if(hit){hit.hp-=gun.damage;if(hit.hp<=0){hit.alive=false;s.kills++;const loot=catalog.enemies[hit.type].loot.filter(()=>Math.random()>.28).map(([id,qty])=>({id,qty}));s.corpses.push({...hit,loot,looted:false,corpse:true});quest('hunters');say(`${catalog.enemies[hit.type].name} повержен.`);}else say(`Попадание · ${Math.round(hit.hp)} здоровья у противника.`);}}
+  let fireCooldown=0,flash=0,reloading=0,messageTime=0,last=0;
+  function reload(){const gun=catalog.weapons[s.equipped];if(!gun||reloading||s.mag[s.equipped]>=gun.mag)return;const reserve=inv(gun.ammo)?.qty||0;if(!reserve)return say('Подходящих патронов нет.');reloading=gun.reload;say('Перезарядка…');}
+  function update(dt){if(s.mode!=='play')return;const p=s.player;let dx=0,dy=0;if(keys.has('w')||keys.has('arrowup'))dy--;if(keys.has('s')||keys.has('arrowdown'))dy++;if(keys.has('a')||keys.has('arrowleft'))dx--;if(keys.has('d')||keys.has('arrowright'))dx++;if(dx||dy){let l=Math.hypot(dx,dy);let speed=p.speed*(weight()>20?.72:1);move(p,dx/l*speed*dt,dy/l*speed*dt,p.radius);}
+    const resist=s.inventory.reduce((a,x)=>a+(catalog.items[x.id].radResist||0)*(x.id.startsWith('artifact')?1:0),0);let rate=0;for(const a of anomalyFields)if(distance(p,a)<a.r)rate=Math.max(rate,a.power);p.rad=Math.max(0,Math.min(100,p.rad+(rate*(1-Math.min(.5,resist))-(rate?0:3))*dt));if(p.rad>65)p.health=Math.max(0,p.health-(p.rad-65)*.045*dt);if(p.health<=0){s.mode='dead';keys.clear();UI.open('death');}
+    for(const e of s.enemies){if(!e.alive)continue;const d=distance(e,p),def=catalog.enemies[e.type];e.attack-=dt;if(d<def.detect&&d>def.reach){move(e,(p.x-e.x)/d*def.speed*dt,(p.y-e.y)/d*def.speed*dt,12);}else if(d<=def.reach&&e.attack<=0){p.health=Math.max(0,p.health-def.damage);e.attack=def.attack;say(`${def.name} атакует · −${def.damage} здоровья.`);}}
+    fireCooldown=Math.max(0,fireCooldown-dt);flash=Math.max(0,flash-dt);if(reloading){reloading-=dt;if(reloading<=0){const gun=catalog.weapons[s.equipped],need=gun.mag-s.mag[s.equipped],takeN=Math.min(need,inv(gun.ammo)?.qty||0);remove(gun.ammo,takeN);s.mag[s.equipped]+=takeN;say('Перезарядка завершена.');}}updateQuest();if(messageTime>0){messageTime-=dt;if(messageTime<=0)document.getElementById('game-message').classList.remove('visible');}}
+  function circle(x,y,r,color,stroke){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x-camera.x,y-camera.y,r,0,Math.PI*2);ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}}
+  function render(t){const p=s.player;camera.x=Math.max(0,Math.min(world.w-canvas.width,p.x-canvas.width/2));camera.y=Math.max(0,Math.min(world.h-canvas.height,p.y-canvas.height/2));ctx.fillStyle='#394833';ctx.fillRect(0,0,canvas.width,canvas.height);for(let y=Math.floor(camera.y/48)*48;y<camera.y+canvas.height+48;y+=48)for(let x=Math.floor(camera.x/48)*48;x<camera.x+canvas.width+48;x+=48){ctx.fillStyle=((x/48|0)*13+(y/48|0)*7)%5===0?'#414d38':'#384632';ctx.fillRect(x-camera.x,y-camera.y,47,47);}ctx.beginPath();ctx.moveTo(35-camera.x,1000-camera.y);ctx.bezierCurveTo(310-camera.x,820-camera.y,615-camera.x,930-camera.y,850-camera.x,710-camera.y);ctx.bezierCurveTo(1050-camera.x,525-camera.y,1250-camera.x,620-camera.y,1760-camera.x,215-camera.y);ctx.strokeStyle='#625f48';ctx.lineWidth=34;ctx.stroke();ctx.beginPath();ctx.moveTo(1110-camera.x,510-camera.y);ctx.quadraticCurveTo(1340-camera.x,660-camera.y,1450-camera.x,930-camera.y);ctx.stroke();
+    for(const o of obstacles){ctx.fillStyle=o.k==='fence'?'#796b4d':o.k==='rock'?'#69705b':'#59604e';ctx.fillRect(o.x-camera.x,o.y-camera.y,o.w,o.h);ctx.strokeStyle='#30382f';ctx.lineWidth=3;ctx.strokeRect(o.x-camera.x,o.y-camera.y,o.w,o.h);}for(const a of anomalyFields){const pulse=.12+Math.sin(t/240)*.035;ctx.fillStyle=`rgba(205,158,91,${pulse})`;ctx.beginPath();ctx.arc(a.x-camera.x,a.y-camera.y,a.r,0,Math.PI*2);ctx.fill();circle(a.x,a.y,5,'#e0ad68');}
+    for(const pnt of points){if(pnt.type==='camp'){circle(pnt.x,pnt.y,8,'#d18d55');}else if(pnt.type==='stash'){ctx.fillStyle=s.stashTaken?'#59604c':'#c29a5e';ctx.fillRect(pnt.x-camera.x-8,pnt.y-camera.y-5,16,12);}else{ctx.fillStyle='#887653';ctx.fillRect(pnt.x-camera.x-16,pnt.y-camera.y-18,32,36);}ctx.fillStyle='#e1d6b8';ctx.font='10px monospace';ctx.fillText(pnt.name,pnt.x-camera.x+12,pnt.y-camera.y-12);}
+    const tower={x:1544,y:267};ctx.strokeStyle='#887653';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(tower.x-camera.x-22,tower.y-camera.y+25);ctx.lineTo(tower.x-camera.x,tower.y-camera.y-30);ctx.lineTo(tower.x-camera.x+22,tower.y-camera.y+25);ctx.stroke();ctx.fillStyle='#e1d6b8';ctx.font='10px monospace';ctx.fillText('СТАРАЯ ВЫШКА',tower.x-camera.x-36,tower.y-camera.y+40);
+    for(const e of s.enemies){if(!e.alive)continue;circle(e.x,e.y,12,catalog.enemies[e.type].color,'#211f19');ctx.fillStyle='#332a22';ctx.fillRect(e.x-camera.x-13,e.y-camera.y-20,26,4);ctx.fillStyle='#ba6551';ctx.fillRect(e.x-camera.x-13,e.y-camera.y-20,26*Math.max(0,e.hp/catalog.enemies[e.type].health),4);}for(const c of s.corpses)if(!c.looted)circle(c.x,c.y,9,'#514b3c');circle(p.x,p.y,p.radius+4,'#d9e59c');circle(p.x,p.y,p.radius,'#263222');ctx.fillStyle='#d9e59c';ctx.beginPath();ctx.moveTo(p.x-camera.x,p.y-camera.y-17);ctx.lineTo(p.x-camera.x-5,p.y-camera.y-7);ctx.lineTo(p.x-camera.x+5,p.y-camera.y-7);ctx.fill();if(flash>0){ctx.strokeStyle='#e9d29b';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x-camera.x,p.y-camera.y);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();}
+    ctx.strokeStyle='#b0a071';ctx.lineWidth=4;ctx.strokeRect(1-camera.x,1-camera.y,world.w-2,world.h-2);drawMini();drawHud();}
+  function drawMini(){const sx=mini.width/world.w,sy=mini.height/world.h;mc.fillStyle='#263426';mc.fillRect(0,0,mini.width,mini.height);mc.strokeStyle='#625f48';mc.lineWidth=6;mc.beginPath();mc.moveTo(3,108);mc.bezierCurveTo(38,88,58,101,85,77);mc.bezierCurveTo(111,51,130,65,177,16);mc.stroke();for(const p of points){mc.fillStyle=p.type==='anomaly'?'#e0ad68':'#d58c54';mc.beginPath();mc.arc(p.x*sx,p.y*sy,3,0,7);mc.fill();}mc.fillStyle='#e4c577';mc.beginPath();mc.arc(1544*sx,267*sy,3,0,7);mc.fill();mc.strokeStyle='rgba(217,229,156,.5)';mc.strokeRect(camera.x*sx,camera.y*sy,canvas.width*sx,canvas.height*sy);mc.fillStyle='#d9e59c';mc.beginPath();mc.arc(s.player.x*sx,s.player.y*sy,3,0,7);mc.fill();}
+  function getLoc(){const p=s.player;if(distance(p,points[1])<150)return 'Лагерь у дороги';if(distance(p,points[2])<200)return 'Полевая аномалия';if(distance(p,points[0])<170)return 'Старое здание';if(distance(p,{x:1544,y:267})<150)return 'Старая вышка';if(p.x<600)return 'Западный тракт';if(p.x>1250)return 'Восточный перелесок';return 'Серая долина';}
+  function drawHud(){const p=s.player,w=catalog.weapons[s.equipped],near=nearest(),q=s.quests.find(x=>!x.done);safeText('coord-x',Math.round(p.x));safeText('coord-y',Math.round(p.y));safeText('location-name',getLoc());safeText('sector-name',getLoc().toLocaleUpperCase('ru-RU'));safeText('zone-caption',getLoc().toLocaleUpperCase('ru-RU'));safeText('health-value',`${Math.round(p.health)}%`);document.getElementById('health-bar').style.width=`${p.health}%`;safeText('radiation-value',`${Math.round(p.rad)}%`);document.getElementById('radiation-bar').style.width=`${p.rad}%`;document.getElementById('radiation-bar').classList.toggle('danger',p.rad>=65);safeText('cash-value',`${p.money.toLocaleString('ru-RU')} ₽`);safeText('weapon-name',w.name);safeText('ammo-value',`${s.mag[s.equipped]} / ${inv(w.ammo)?.qty||0}`);safeText('objective-title',q?.title||'Все поручения выполнены');safeText('objective-description',q?.description||'Сектор исследован');document.getElementById('objective-progress-bar').style.width=q?`${Math.min(100,q.progress/q.goal*100)}%`:'100%';safeText('objective-status',q?`ПРОГРЕСС ${q.progress} / ${q.goal}`:'СЕКТОР ИССЛЕДОВАН');safeText('inventory-weight',`${weight().toFixed(1)} / 24 кг`);safeText('inventory-summary-line',s.inventory.length?`${s.inventory.length} вида · ${s.inventory.reduce((n,x)=>n+x.qty,0)} предметов`:'Полевое снаряжение');const prompt=document.getElementById('interaction-prompt');prompt.hidden=!near;safeText('interaction-label',near?.type==='camp'?'Лагерь · отдых и торговля':near?.type==='stash'?'Обыскать тайник':near?.corpse?'Обыскать противника':near?`Осмотреть: ${near.name}`:'');safeText('world-state',s.mode==='play'?'СИСТЕМА АКТИВНА':'ПАУЗА');}
+  function frame(t){const dt=Math.min((t-last)/1000||0,.05);last=t;update(dt);render(t);requestAnimationFrame(frame);}
+  function keyName(e){const mapped={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d',KeyE:'e',KeyI:'i',KeyJ:'j',KeyR:'r',Digit1:'1',Digit2:'2',Digit3:'3',Space:' '};return mapped[e.code]||e.key.toLowerCase();}
+  window.addEventListener('keydown',e=>{const k=keyName(e);if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d',' ','e','i','j','r'].includes(k))e.preventDefault();if(e.repeat)return;if(k==='e'&&s.mode==='play')interact();else if(k==='i'&&s.mode!=='menu')UI.open('inventory');else if(k==='j'&&s.mode!=='menu')UI.open('journal');else if(k==='escape'){if(s.mode==='play'){s.mode='pause';keys.clear();UI.open('pause');}else if(s.mode==='pause')UI.close();}else if(k==='r'&&s.mode==='play')reload();else if(k>='1'&&k<='3'&&s.mode==='play'){const id=['pm','shotgun','rifle'][Number(k)-1];const row=s.inventory.findIndex(x=>x.id===id);if(row>=0)equip(row);}else if(k===' '&&s.mode==='play')shoot(mouse.worldX,mouse.worldY);if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)&&s.mode==='play')keys.add(k);});
+  window.addEventListener('keyup',e=>keys.delete(keyName(e)));window.addEventListener('blur',()=>keys.clear());
+  const mouse={x:0,y:0,worldX:0,worldY:0};canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();mouse.x=(e.clientX-r.left)*canvas.width/r.width;mouse.y=(e.clientY-r.top)*canvas.height/r.height;mouse.worldX=mouse.x+camera.x;mouse.worldY=mouse.y+camera.y;});canvas.addEventListener('mousedown',e=>{if(e.button===0)shoot(mouse.worldX,mouse.worldY);});
+  document.getElementById('inventory-button').addEventListener('click',()=>UI.open('inventory'));document.getElementById('inventory-link').addEventListener('click',()=>UI.open('inventory'));document.getElementById('journal-button').addEventListener('click',()=>UI.open('journal'));document.getElementById('journal-link').addEventListener('click',()=>UI.open('journal'));document.getElementById('save-button').addEventListener('click',save);
+  function startMenu(){s=emptyState();UI.open('menu');}
+  const observer=new MutationObserver(()=>{const overlay=document.getElementById('overlay-root');if(!overlay.hidden&&overlay.textContent.includes('Продолжить'))s.mode='menu';});observer.observe(document.getElementById('overlay-root'),{childList:true,subtree:true});
+  document.addEventListener('DOMContentLoaded',()=>{});document.getElementById('clock').textContent=new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'}).format(new Date());window.requestAnimationFrame(frame);startMenu();
 })();
