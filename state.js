@@ -1,6 +1,6 @@
 (() => {
-  const VERSION = 3;
-  const LEGACY_VERSION = 2;
+  const VERSION = 5;
+  const LEGACY_VERSIONS = [2,3,4];
   const KEY = 'zonerpg-pda-save';
   const clamp = (value, min, max, fallback = 0) => Number.isFinite(Number(value))
     ? Math.max(min, Math.min(max, Number(value))) : fallback;
@@ -11,19 +11,20 @@
       version: VERSION,
       mode: 'menu',
       player: {health:100,maxHealth:100,stamina:100,maxStamina:100,hunger:14,thirst:12,radiation:0,money:620,rank:1,xp:0,kills:0,trips:0,artifacts:0,location:'cordon',time:8},
+      baseStats:{maxHealth:100,maxStamina:100,maxCarryWeight:25},temporaryModifiers:{},
       inventory: [
         {id:'knife',qty:1,instanceId:'item-1'}, {id:'pm',qty:1,instanceId:'item-2'},
-        {id:'jacket',qty:1,instanceId:'item-3'}, {id:'ammo918',qty:28},
+        {id:'jacket',qty:1,instanceId:'item-3'}, {id:'fieldPack',qty:1,instanceId:'item-4'}, {id:'ammo918',qty:28},
         {id:'medkit',qty:1}, {id:'bandage',qty:2}, {id:'canned',qty:2}, {id:'water',qty:2}
       ],
-      nextItemInstance: 4,
-      equipment: {weapon:'pm',armor:'jacket',artifacts:[]},
+      nextItemInstance: 5,
+      equipment: {primary:null,sidearm:'item-2',melee:'item-1',armor:'item-3',head:null,backpack:'item-4',detector:null,activeWeaponSlot:'sidearm',weapon:'pm',artifacts:[]},
       magazines: {pm:8},
       reputation: {loners:5,bandits:-10,duty:0,freedom:0,military:-5,ecologists:0,mercs:0,mutants:-10,monolith:-25},
       quests: {active:[{id:'first_road',step:0,progress:0}],completed:[]},
-      known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], takenCaches:[], explores:{},
+      known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], recentEvents:[], takenCaches:[], explores:{},explorationCount:0,knowledge:[],
       worldFlags:{documentsFound:false,stationOpen:false}, travelTo:null, event:null, combat:null,
-      log:['Ты входишь в Зону. На Кордоне ещё можно передумать.'], settings:{scale:1,reduceMotion:false},
+      log:['Ты входишь в Зону. На Кордоне ещё можно передумать.'], rumors:[], settings:{scale:1,reduceMotion:false,music:true,sfx:true,volume:.35},
       statistics:{earnings:0,artifacts:0,kills:0,quests:0}
     };
   }
@@ -53,28 +54,30 @@
       resultText:typeof sourceFlow.resultText === 'string' ? sourceFlow.resultText : '',
       lastChoice:typeof sourceFlow.lastChoice === 'string' ? sourceFlow.lastChoice : ''
     };
-    if (isArrival) return {id:raw.id,category:typeof raw.category==='string'?raw.category:'Локация',text:typeof raw.text==='string'?raw.text:'',choices:Array.isArray(raw.choices)?raw.choices.slice(0,4):[],flow};
-    if (phase === 'result') return {id:definition.id,category:definition.category,text:flow.resultText || 'Ты решаешь продолжить путь.',choices:[{label:'Далее',action:'advance'}],flow};
-    if (phase === 'combat') return {id:definition.id,category:definition.category,text:typeof raw.text==='string'?raw.text:stage.text,choices:[],flow};
-    return {id:definition.id,category:definition.category,text:stage.text || definition.text || '',choices:Array.isArray(stage.choices)?stage.choices:[],flow};
+    if (isArrival) return {id:raw.id,category:typeof raw.category==='string'?raw.category:'Локация',rarity:typeof raw.rarity==='string'?raw.rarity:'common',text:typeof raw.text==='string'?raw.text:'',choices:Array.isArray(raw.choices)?raw.choices.slice(0,4):[],flow};
+    if (phase === 'result') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:flow.resultText || 'Ты решаешь продолжить путь.',choices:[{label:'Далее',action:'advance'}],flow};
+    if (phase === 'combat') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:typeof raw.text==='string'?raw.text:stage.text,choices:[],flow};
+    return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:stage.text || definition.text || '',choices:Array.isArray(stage.choices)?stage.choices:[],flow};
   }
 
   function sanitize(input, items, world) {
     const base = fresh();
-    if (!input || typeof input !== 'object' || ![LEGACY_VERSION,VERSION].includes(input.version)) return base;
+    if (!input || typeof input !== 'object' || ![...LEGACY_VERSIONS,VERSION].includes(input.version)) return base;
     const p = input.player && typeof input.player === 'object' ? input.player : {};
     const defaults = base.player;
     base.player = {...defaults,...p};
-    base.player.maxHealth=clamp(p.maxHealth,60,250,defaults.maxHealth);
-    base.player.maxStamina=clamp(p.maxStamina,50,150,defaults.maxStamina);
-    base.player.health=clamp(p.health,0,base.player.maxHealth+25,defaults.health);
-    base.player.stamina=clamp(p.stamina,0,base.player.maxStamina,defaults.stamina);
+    base.baseStats={maxHealth:clamp(input.baseStats?.maxHealth??p.maxHealth,60,250,defaults.maxHealth),maxStamina:clamp(input.baseStats?.maxStamina??p.maxStamina,50,150,defaults.maxStamina),maxCarryWeight:clamp(input.baseStats?.maxCarryWeight,8,120,25)};
+    base.temporaryModifiers=input.temporaryModifiers&&typeof input.temporaryModifiers==='object'&&!Array.isArray(input.temporaryModifiers)?Object.fromEntries(Object.entries(input.temporaryModifiers).filter(([,v])=>Number.isFinite(Number(v)))):{};
+    base.player.maxHealth=base.baseStats.maxHealth;
+    base.player.maxStamina=base.baseStats.maxStamina;
+    base.player.health=clamp(p.health,0,base.baseStats.maxHealth+100,defaults.health);
+    base.player.stamina=clamp(p.stamina,0,base.baseStats.maxStamina+100,defaults.stamina);
     for(const key of ['hunger','thirst','radiation'])base.player[key]=clamp(p[key],0,100,defaults[key]);
     base.player.money=clamp(p.money,0,999999,defaults.money);
     for(const key of ['rank','xp','kills','trips','artifacts','time'])base.player[key]=clamp(p[key],key==='rank'?1:0,key==='time'?23:99999,defaults[key]);
     if(!world.locations[base.player.location])base.player.location='cordon';
 
-    let nextId=clamp(input.nextItemInstance,1,999999,4);
+    let nextId=clamp(input.nextItemInstance,1,999999,5);
     const usedIds=new Set();
     const makeInstance=()=>{let id;do{id=`item-${nextId++}`;}while(usedIds.has(id));usedIds.add(id);return id;};
     if(Array.isArray(input.inventory)){
@@ -87,20 +90,30 @@
       }
       base.inventory=inventory;
     }
-    base.nextItemInstance=Math.max(nextId,4);
-    base.equipment={...base.equipment,...(input.equipment||{})};
-    if(!items[base.equipment.weapon]?.weaponId)base.equipment.weapon='pm';
-    if(items[base.equipment.armor]?.type!=='armor')base.equipment.armor='jacket';
-    for(const id of [base.equipment.weapon,base.equipment.armor])if(!base.inventory.some(row=>row.id===id)){const row={id,qty:1,instanceId:`item-${base.nextItemInstance++}`};base.inventory.push(row);}
-    const artifactRefs=Array.isArray(input.equipment?.artifacts)?input.equipment.artifacts:[];
-    const selected=[];
-    for(const ref of artifactRefs){
-      let row=base.inventory.find(entry=>entry.instanceId===ref&&items[entry.id]?.type==='artifact'&&!selected.includes(entry.instanceId));
-      if(!row&&items[ref]?.type==='artifact')row=base.inventory.find(entry=>entry.id===ref&&items[entry.id]?.type==='artifact'&&!selected.includes(entry.instanceId));
-      if(row)selected.push(row.instanceId);
-      if(selected.length===2)break;
+    base.nextItemInstance=Math.max(nextId,5);
+    const sourceEquipment=input.equipment||{};
+    if(input.version<4&&!base.inventory.some(row=>row.id==='fieldPack'))base.inventory.push({id:'fieldPack',qty:1,instanceId:`item-${base.nextItemInstance++}`});
+    const slotNames=['primary','sidearm','melee','armor','head','backpack','detector'];
+    const equipment={...fresh().equipment,activeWeaponSlot:'sidearm'};
+    const findGear=(ref,slot)=>{
+      let row=base.inventory.find(entry=>entry.instanceId===ref&&items[entry.id]?.slot===slot);
+      if(!row&&typeof ref==='string')row=base.inventory.find(entry=>entry.id===ref&&items[entry.id]?.slot===slot);
+      return row?row.instanceId||row.id:null;
+    };
+    if(input.version>=4){for(const slot of slotNames)equipment[slot]=Object.prototype.hasOwnProperty.call(sourceEquipment,slot)?findGear(sourceEquipment[slot],slot):equipment[slot];equipment.activeWeaponSlot=['primary','sidearm','melee'].includes(sourceEquipment.activeWeaponSlot)?sourceEquipment.activeWeaponSlot:'sidearm';}
+    else{
+      const oldWeapon=sourceEquipment.weapon||'pm',oldSlot=items[oldWeapon]?.slot||'sidearm';equipment[oldSlot]=findGear(oldWeapon,oldSlot)||equipment[oldSlot];equipment.armor=findGear(sourceEquipment.armor||'jacket','armor')||equipment.armor;equipment.melee=findGear('knife','melee')||equipment.melee;equipment.backpack=findGear('fieldPack','backpack')||equipment.backpack;equipment.activeWeaponSlot=oldSlot;
     }
-    base.equipment.artifacts=selected;
+    for(const slot of slotNames){const ref=equipment[slot];if(ref&&!base.inventory.some(row=>(row.instanceId||row.id)===ref))equipment[slot]=null;}
+    const artifactRefs=Array.isArray(sourceEquipment.artifacts)?sourceEquipment.artifacts:[];
+    const selected=[];
+    for(const ref of artifactRefs){let row=base.inventory.find(entry=>entry.instanceId===ref&&items[entry.id]?.type==='artifact'&&!selected.includes(entry.instanceId));if(!row&&items[ref]?.type==='artifact')row=base.inventory.find(entry=>entry.id===ref&&items[entry.id]?.type==='artifact'&&!selected.includes(entry.instanceId));if(row)selected.push(row.instanceId);if(selected.length===4)break;}
+    equipment.artifacts=selected;
+    const legacyWeapon=sourceEquipment.weapon||'pm';
+    if(!equipment[equipment.activeWeaponSlot]||items[base.inventory.find(row=>(row.instanceId||row.id)===equipment[equipment.activeWeaponSlot])?.id]?.type!=='weapon')equipment.activeWeaponSlot=equipment.sidearm?'sidearm':equipment.primary?'primary':'melee';
+    const activeRow=base.inventory.find(row=>(row.instanceId||row.id)===equipment[equipment.activeWeaponSlot]);
+    equipment.weapon=activeRow?.id||'';
+    base.equipment=equipment;
     base.magazines={...base.magazines,...(input.magazines||{})};
     for(const id of Object.keys(base.magazines)){const weapon=window.ZoneRPGItems.weapons[id];if(!weapon)delete base.magazines[id];else base.magazines[id]=clamp(base.magazines[id],0,weapon.magazine||0,0);}
     base.reputation={...base.reputation,...(input.reputation||{})};
@@ -112,10 +125,14 @@
     base.known=Array.isArray(input.known)?unique(input.known.filter(id=>world.locations[id])):base.known;
     base.visited=Array.isArray(input.visited)?unique(input.visited.filter(id=>world.locations[id])):base.visited;
     base.seenEvents=Array.isArray(input.seenEvents)?unique(input.seenEvents.filter(id=>world.events.some(event=>event.id===id))):[];
+    base.recentEvents=Array.isArray(input.recentEvents)?input.recentEvents.filter(id=>typeof id==='string').slice(-8):[];
     base.takenCaches=Array.isArray(input.takenCaches)?unique(input.takenCaches.filter(x=>typeof x==='string'&&x.length<80)):[];
-    base.explores={};if(input.explores&&typeof input.explores==='object')for(const [id,n]of Object.entries(input.explores))if(world.locations[id])base.explores[id]=clamp(n,0,3);
+    base.explores={};if(input.explores&&typeof input.explores==='object')for(const [id,n]of Object.entries(input.explores))if(world.locations[id])base.explores[id]=clamp(n,0,999999);
+    base.explorationCount=clamp(input.explorationCount,Object.values(base.explores).reduce((sum,n)=>sum+n,0),999999,Object.values(base.explores).reduce((sum,n)=>sum+n,0));
+    base.knowledge=Array.isArray(input.knowledge)?unique(input.knowledge.filter(x=>typeof x==='string').slice(-80)):[];
+    base.rumors=Array.isArray(input.rumors)?input.rumors.filter(x=>x&&typeof x.text==='string').slice(-30):[];
     if(input.worldFlags&&typeof input.worldFlags==='object')for(const key of Object.keys(base.worldFlags))base.worldFlags[key]=Boolean(input.worldFlags[key]);
-    if(input.settings&&typeof input.settings==='object'){base.settings.scale=Number(input.settings.scale);base.settings.reduceMotion=Boolean(input.settings.reduceMotion);}
+    if(input.settings&&typeof input.settings==='object'){base.settings.scale=Number(input.settings.scale);base.settings.reduceMotion=Boolean(input.settings.reduceMotion);base.settings.music=input.settings.music!==false;base.settings.sfx=input.settings.sfx!==false;base.settings.volume=clamp(input.settings.volume,0,1,.35);}
     base.settings.scale=[1,1.1].includes(base.settings.scale)?base.settings.scale:1;
     if(input.statistics&&typeof input.statistics==='object')for(const key of Object.keys(base.statistics))base.statistics[key]=clamp(input.statistics[key],0,999999,0);
     base.log=Array.isArray(input.log)?input.log.filter(x=>typeof x==='string').slice(-10):base.log;
@@ -125,8 +142,11 @@
     if(rawCombat&&typeof rawCombat==='object'&&world.enemyTypes[rawCombat.type]){
       const enemy=world.enemyTypes[rawCombat.type],savedEnemy=rawCombat.enemy&&typeof rawCombat.enemy==='object'?rawCombat.enemy:{};
       const maxHp=clamp(savedEnemy.maxHp,1,enemy.hp,enemy.hp);
-      base.combat={type:rawCombat.type,enemy:{...enemy,...savedEnemy,maxHp,hp:clamp(savedEnemy.hp,0,maxHp,enemy.hp)},aimed:Boolean(rawCombat.aimed),turn:clamp(rawCombat.turn,1,999,1),log:Array.isArray(rawCombat.log)?rawCombat.log.filter(x=>typeof x==='string').slice(-6):[]};
+      base.combat={type:rawCombat.type,enemy:{...enemy,...savedEnemy,maxHp,hp:clamp(savedEnemy.hp,0,maxHp,enemy.hp)},aimed:Boolean(rawCombat.aimed),status:typeof rawCombat.status==='string'?rawCombat.status:'В БОЮ',turn:clamp(rawCombat.turn,1,999,1),log:Array.isArray(rawCombat.log)?rawCombat.log.filter(x=>typeof x==='string').slice(-6):[]};
     }
+    const modifiers={};for(const ref of slotNames.map(slot=>base.equipment[slot]).concat(base.equipment.artifacts)){const row=base.inventory.find(item=>(item.instanceId||item.id)===ref),fx=items[row?.id]?.effect||{};for(const [key,value]of Object.entries(fx))if(Number.isFinite(Number(value)))modifiers[key]=(modifiers[key]||0)+Number(value);}for(const [key,value]of Object.entries(base.temporaryModifiers))modifiers[key]=(modifiers[key]||0)+Number(value);
+    base.player.health=clamp(base.player.health,0,Math.max(1,base.baseStats.maxHealth+(modifiers.maxHealth||0)),defaults.health);
+    base.player.stamina=clamp(base.player.stamina,0,Math.max(1,base.baseStats.maxStamina+(modifiers.maxStamina||0)),defaults.stamina);
     if(base.combat){base.mode='combat';if(base.event?.flow)base.event.flow.phase='combat';}
     else if(base.event?.flow?.phase==='combat'){base.event.flow.phase='result';base.event.flow.resultText=base.event.flow.pending?.fleeText||base.event.flow.pending?.winText||'Сохранённый бой завершился. Ты возвращаешься к событию.';base.event.text=base.event.flow.resultText;base.event.choices=[{label:'Далее',action:'advance'}];base.mode='event';}
     else if(base.event)base.mode='event';
@@ -136,5 +156,5 @@
     return base;
   }
 
-  window.ZoneRPGState={VERSION,LEGACY_VERSION,KEY,fresh,sanitize};
+  window.ZoneRPGState={VERSION,LEGACY_VERSIONS,KEY,fresh,sanitize};
 })();
