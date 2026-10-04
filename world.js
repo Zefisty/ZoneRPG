@@ -43,8 +43,37 @@
     {category:'Лагеря и отдых',kind:'explore',minDanger:1,lines:['В небольшой землянке тлеет печь и никого не видно.','У костра можно согреться, но припасы придётся оплатить.','Старый навес защищает от ветра и радиационного дождя.','В палатке оставили чистую ткань и флягу.','Сталкеры поделились слухами о безопасной тропе.'],choices:[{label:'Отдохнуть · 40 ₽',effects:{money:-40,health:8,stamina:30,hunger:6,thirst:5}},{label:'Спросить новости',effects:{rep:{loners:2},discoverRoll:true}},{label:'Идти дальше',effects:{}}]},
     {category:'Риски и выбор',kind:'both',minDanger:1,lines:['На дороге лежит брошенный военный планшет с зашифрованной картой.','В пыльной комнате за дверью тихо капает вода.','Чужой рюкзак привязан к тонкой проволоке.','В разбитой лаборатории мигает аварийный терминал.','За стеной кто-то зовёт на помощь, но голос звучит неестественно.'],choices:[{label:'Рискнуть и проверить',effects:{riskRoll:true,lootRoll:true}},{label:'Сначала оценить опасность',effects:{detectRoll:true,stamina:-3}},{label:'Отойти',effects:{}}]}
   ];
-  const variants=['',' Повторный след',' Следы у насыпи',' На старой тропе',' За линией леса'];
   const events=[];
-  eventSeeds.forEach((seed,si)=>seed.lines.forEach((text,vi)=>events.push({id:`event_${si+1}_${vi+1}`,category:seed.category,kind:seed.kind,minDanger:seed.minDanger,text:text+variants[vi],choices:seed.choices.map(choice=>({...choice,effects:choice.effects?{...choice.effects}:undefined}))})));
-  window.ZoneRPGWorld={locations,people,factions,enemyTypes,quests,events,eventSeeds};
+  eventSeeds.forEach((seed,si)=>seed.lines.forEach((text,vi)=>events.push({id:`event_${si+1}_${vi+1}`,category:seed.category,kind:seed.kind,minDanger:seed.minDanger,text,choices:seed.choices.map(choice=>({...choice,effects:choice.effects?{...choice.effects}:undefined}))})));
+  const eventChains=[
+    {id:'chain_abandoned_camp',category:'Заброшенный лагерь',kind:'explore',minDanger:1,stages:[
+      {id:'discover',text:'За осыпавшейся насыпью виден старый лагерь. Костёр давно погас, но следы вокруг свежие.',choices:[{label:'Осмотреть кострище',nextStage:'search',resultText:'В золе нашёлся окурок, ещё не успевший отсыреть.'},{label:'Не задерживаться',finish:true,resultText:'Ты обходишь лагерь и возвращаешься к тропе.'}]},
+      {id:'search',text:'У палатки валяется рюкзак с порванным клапаном. Внутри что-то гремит.',choices:[{label:'Открыть рюкзак',nextStage:'stash',resultText:'Замок поддался. Внутри лежат патроны и банка тушёнки.'},{label:'Проверить следы вокруг',effects:{detectRoll:true},nextStage:'stash',resultText:'Следы уходят к дороге. Похоже, хозяин ушёл сам.'}]},
+      {id:'stash',text:'В рюкзаке остались припасы. Их хватит кому-нибудь на один переход.',choices:[{label:'Забрать припасы',effects:{add:{ammo918:6,canned:1}},nextStage:'leave',resultText:'Ты перекладываешь патроны и консервы в свой рюкзак.'},{label:'Оставить на месте',nextStage:'leave',resultText:'Ты закрываешь клапан. Пусть находка дождётся хозяина.'}]},
+      {id:'leave',text:'Лагерь остаётся позади, впереди снова слышна дорога.',choices:[{label:'Далее',finish:true,resultText:'Ты продолжаешь путь.'}]}
+    ]},
+    {id:'chain_wounded_stalker',category:'Раненый сталкер',kind:'travel',minDanger:1,stages:[
+      {id:'meet',text:'У обочины сидит раненый сталкер. Он держит ладонь на боку и молча следит за твоими руками.',choices:[{label:'Помочь бинтом',nextStage:'thanks',effects:{itemCost:{bandage:1},rep:{loners:2},health:4},resultText:'Кровотечение удалось остановить. Сталкер медленно поднимается на ноги.'},{label:'Оставить припасы и уйти',nextStage:'thanks',effects:{add:{water:1},rep:{loners:1}},resultText:'Ты ставишь флягу рядом. Незнакомец кивает и не задаёт вопросов.'},{label:'Пройти мимо',finish:true,resultText:'Ты не останавливаешься. Позади слышен только шум ветра.'}]},
+      {id:'thanks',text:'Раненый проверяет повязку и смотрит в сторону ближайшей стоянки.',choices:[{label:'Спросить о дороге',nextStage:'gift',effects:{discoverRoll:true},resultText:'Он показывает короткую тропу в обход открытого участка.'},{label:'Попрощаться',finish:true,resultText:'Сталкер остаётся у обочины. Ты продолжаешь путь.'}]},
+      {id:'gift',text:'Перед уходом сталкер достаёт из внутреннего кармана аптечку.',choices:[{label:'Принять аптечку',nextStage:'leave',effects:{add:{medkit:1}},resultText:'«Мне пока нужнее бинты», — говорит он и протягивает тебе аптечку.'}]},
+      {id:'leave',text:'Раненый укрылся за бетонной плитой. Тропа впереди свободна.',choices:[{label:'Далее',finish:true,resultText:'Ты снова в пути.'}]}
+    ]},
+    {id:'chain_suspicious_cache',category:'Подозрительный тайник',kind:'both',minDanger:2,stages:[
+      {id:'discover',text:'Под ржавой плитой заметна крышка тайника. К ней тянется тонкая проволока.',choices:[{label:'Осмотреть крепление',nextStage:'risk',effects:{detectRoll:true},resultText:'Проволока уходит под плиту и теряется в грязи.'},{label:'Отойти',finish:true,resultText:'Ты оставляешь тайник в покое.'}]},
+      {id:'risk',text:'Замок проржавел, но крышка поддаётся. Внутри может быть что угодно.',choices:[{label:'Открыть тайник',nextStage:'result',effects:{riskRoll:true,lootRoll:true},resultText:'Крышка с глухим скрипом отходит. Ты проверяешь содержимое и быстро закрываешь тайник.'},{label:'Не рисковать',nextStage:'result',resultText:'Ты решаешь не трогать чужую схронку.'}]},
+      {id:'result',text:'Проволока осталась неподвижной. Кажется, на этот раз обошлось.',choices:[{label:'Далее',finish:true,resultText:'Ты возвращаешься на тропу.'}]}
+    ]},
+    {id:'chain_road_tracks',category:'Следы на дороге',kind:'travel',minDanger:2,stages:[
+      {id:'tracks',text:'На грязи отпечатались свежие следы тяжёлых ботинок. Они сворачивают к разрушенному зданию.',choices:[{label:'Проследить их',nextStage:'building',resultText:'Следы ведут к пролому в стене. Внутри мерцает слабый свет.'},{label:'Обойти здание',finish:true,resultText:'Ты держишься подальше от чужого укрытия.'}]},
+      {id:'building',text:'За стеной кто-то передвигает ящики. Выход перекрыт кучей кирпича.',choices:[{label:'Позвать из укрытия',nextStage:'contact',resultText:'Шорох внутри стихает. Через щель отвечает усталый голос.'},{label:'Войти с оружием',combat:'bandit',nextStage:'contact',winText:'За проломом никого не осталось. В углу мигает радиоприёмник.',fleeText:'Ты отступаешь от пролома, сохранив дистанцию.'}]},
+      {id:'contact',text:'Приёмник ловит короткий сигнал с координатами старой метеостанции.',choices:[{label:'Записать частоту',nextEvent:'chain_strange_signal',effects:{rep:{loners:1}},resultText:'Частота сохранена в КПК. Сигнал снова повторяется — уже ближе.'},{label:'Продолжить дорогу',finish:true,resultText:'Ты оставляешь чужую частоту в покое.'}]}
+    ]},
+    {id:'chain_strange_signal',category:'Странный сигнал',kind:'both',minDanger:2,stages:[
+      {id:'source',text:'Приёмник шипит на одной частоте. Между помехами слышны координаты и три коротких удара.',choices:[{label:'Найти источник',nextStage:'approach',effects:{discoverRoll:true},resultText:'Сигнал идёт из старой будки у насыпи.'},{label:'Сменить частоту',finish:true,resultText:'Помехи затихают, и дорога снова становится слышна.'}]},
+      {id:'approach',text:'У будки лежит разобранная рация. Рядом — свежий след от сапога.',choices:[{label:'Осмотреть аппаратуру',nextStage:'choice',effects:{lootRoll:true},resultText:'Под корпусом нашёлся запечатанный конверт с пометкой «Янтарь».'},{label:'Ответить в эфир',nextStage:'choice',effects:{rep:{ecologists:2},questRoll:true},resultText:'В эфире отвечает неизвестный голос и передаёт краткие координаты.'}]},
+      {id:'choice',text:'Частота больше не повторяется. Координаты остались в журнале КПК.',choices:[{label:'Далее',finish:true,resultText:'Ты продолжаешь путь, прислушиваясь к рации.'}]}
+    ]}
+  ];
+  events.push(...eventChains);
+  window.ZoneRPGWorld={locations,people,factions,enemyTypes,quests,events,eventSeeds,eventChains};
 })();
