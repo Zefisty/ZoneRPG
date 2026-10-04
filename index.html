@@ -18,19 +18,19 @@
 
     <section class="game-layout" aria-label="Игровая область">
       <div class="world-panel">
-        <div class="world-heading"><div><span class="eyebrow">ОДИНОЧНАЯ ЭКСПЕДИЦИЯ</span><h1>Старый периметр</h1></div><div class="coordinates">X <span id="coord-x">900</span><br>Y <span id="coord-y">600</span></div></div>
+        <div class="world-heading"><div><span class="eyebrow">ОДИНОЧНАЯ ЭКСПЕДИЦИЯ</span><h1 id="location-name">Старый периметр</h1></div><div class="coordinates">X <span id="coord-x">900</span><br>Y <span id="coord-y">600</span></div></div>
         <div class="canvas-frame">
           <canvas id="world" width="960" height="540" aria-label="Карта игрового мира"></canvas>
           <div class="map-card"><div class="map-title">КАРТА <span>СЕКТОР 04</span></div><canvas id="minimap" width="180" height="130" aria-label="Мини-карта"></canvas><div class="map-legend"><span><i class="legend-player"></i> Вы</span><span><i class="legend-point"></i> Объект</span></div></div>
-          <div class="zone-tag"><span class="zone-tag-icon">⌁</span> СЕРАЯ ДОЛИНА</div>
-          <div class="game-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> или <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> <span>движение</span></div>
+          <div class="zone-tag"><span class="zone-tag-icon">⌁</span> <span id="sector-name">СЕРАЯ ДОЛИНА</span></div>
+          <div class="game-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> или <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> <span>движение</span><kbd>E</kbd><span>осмотр</span></div><div class="interaction-prompt" id="interaction-prompt" hidden><kbd>E</kbd><span id="interaction-label">Осмотреть объект</span></div><div class="game-message" id="game-message" role="status" aria-live="polite"></div>
         </div>
         <div class="world-footer"><span><span class="live-dot"></span> СИСТЕМА АКТИВНА</span><span>ВЕТЕР: СЕВЕРО-ЗАПАД · 4 М/С</span><span id="clock">--:--</span></div>
       </div>
 
       <aside class="side-panel">
-        <section class="panel-block character-block"><div class="panel-label">ПУТНИК <span>01</span></div><div class="portrait"><div class="portrait-silhouette"><span></span></div><div class="portrait-caption"><strong>Следопыт</strong><small>Новичок · Свободный сталкер</small></div></div><div class="stat"><div class="stat-label"><span>ЗДОРОВЬЕ</span><span id="health-value">100%</span></div><div class="bar health-bar"><i id="health-bar"></i></div></div><div class="stat"><div class="stat-label"><span>ВЫНОСЛИВОСТЬ</span><span>100%</span></div><div class="bar stamina-bar"><i></i></div></div></section>
-        <section class="panel-block objective"><div class="panel-label">ТЕКУЩАЯ ЦЕЛЬ</div><div class="objective-title"><span class="objective-icon">⌖</span><div><strong>Осмотреть периметр</strong><small>Доберитесь до старой вышки</small></div></div><div class="objective-progress"><span></span></div><small class="progress-caption">ПУТЬ НЕИЗВЕСТЕН</small></section>
+        <section class="panel-block character-block"><div class="panel-label">ПУТНИК <span>01</span></div><div class="portrait"><div class="portrait-silhouette"><span></span></div><div class="portrait-caption"><strong>Следопыт</strong><small>Новичок · Свободный сталкер</small></div></div><div class="stat"><div class="stat-label"><span>ЗДОРОВЬЕ</span><span id="health-value">100%</span></div><div class="bar health-bar"><i id="health-bar"></i></div></div><div class="stat"><div class="stat-label"><span>ВЫНОСЛИВОСТЬ</span><span>100%</span></div><div class="bar stamina-bar"><i></i></div></div><div class="stat radiation-stat"><div class="stat-label"><span>РАДИАЦИЯ</span><span id="radiation-value">0%</span></div><div class="bar radiation-bar"><i id="radiation-bar"></i></div></div><div class="cash-row"><span>НАЛИЧНЫЕ</span><strong id="cash-value">1 200 ₽</strong></div></section>
+        <section class="panel-block objective"><div class="panel-label">ТЕКУЩАЯ ЦЕЛЬ</div><div class="objective-title"><span class="objective-icon">⌖</span><div><strong id="objective-title">Подойти к старой вышке</strong><small id="objective-description">Ориентир на востоке сектора</small></div></div><div class="objective-progress"><span id="objective-progress-bar"></span></div><small class="progress-caption" id="objective-status">ЦЕЛЬ АКТИВНА</small></section>
         <section class="panel-block inventory"><div class="panel-label">СНАРЯЖЕНИЕ <span>02 / 06</span></div><div class="item-row"><span class="item-icon">▤</span><span>Полевой рюкзак</span><span class="item-count">1</span></div><div class="item-row"><span class="item-icon">◉</span><span>Дозиметр</span><span class="item-count">1</span></div><div class="empty-slots"><i></i><i></i><i></i><i></i></div></section>
         <div class="side-note"><span>!</span><p>Зона меняется каждый день.<br>Смотри под ноги, сталкер.</p></div>
       </aside>
