@@ -2,55 +2,20 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#111713">
-  <title>ZoneRPG — Периметр</title>
+  <meta name="description" content="ZONE RPG — короткие опасные вылазки в статической браузерной игре о Зоне.">
+  <title>ZONE RPG — КПК сталкера</title>
   <link rel="stylesheet" href="style.css">
   <script defer src="items.js"></script>
+  <script defer src="world.js"></script>
+  <script defer src="state.js"></script>
+  <script defer src="save.js"></script>
+  <script defer src="engine.js"></script>
   <script defer src="ui.js"></script>
   <script defer src="game.js"></script>
 </head>
 <body>
-  <main class="shell">
-    <header class="topbar">
-      <a class="brand" href="#" aria-label="ZoneRPG"><span class="brand-mark">Z</span><span>ZONE<span class="brand-dim">RPG</span></span></a>
-      <div class="location"><span class="signal"></span><span>ЗОНА ОТЧУЖДЕНИЯ</span><span class="location-divider">/</span><span id="sector-name" class="muted">СЕРАЯ ДОЛИНА</span></div>
-      <div class="top-tools">
-        <button class="tool-button" id="journal-button" type="button">Журнал <kbd>J</kbd></button>
-        <button class="tool-button" id="inventory-button" type="button">Рюкзак <kbd>I</kbd></button>
-        <button class="tool-button save-button" id="save-button" type="button">Сохранить</button>
-      </div>
-    </header>
-
-    <section class="game-layout" aria-label="Игровая область">
-      <div class="world-panel">
-        <div class="world-heading"><div><span class="eyebrow">ОДИНОЧНАЯ ЭКСПЕДИЦИЯ</span><h1 id="location-name">Старый периметр</h1></div><div class="coordinates">X <span id="coord-x">900</span><br>Y <span id="coord-y">600</span></div></div>
-        <div class="canvas-frame">
-          <canvas id="world" width="960" height="540" aria-label="Карта игрового мира"></canvas>
-          <div class="map-card"><div class="map-title">КАРТА <span>СЕКТОР 04</span></div><canvas id="minimap" width="180" height="130" aria-label="Мини-карта"></canvas><div class="map-legend"><span><i class="legend-player"></i> Вы</span><span><i class="legend-point"></i> Объект</span></div></div>
-          <div class="zone-tag"><span class="zone-tag-icon">⌁</span> <span id="zone-caption">СЕРАЯ ДОЛИНА</span></div>
-          <div class="game-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> <span>движение</span><kbd>E</kbd><span>осмотр</span><kbd>R</kbd><span>перезарядка</span><kbd>I</kbd><span>рюкзак</span></div>
-          <div class="interaction-prompt" id="interaction-prompt" hidden><kbd>E</kbd><span id="interaction-label">Осмотреть объект</span></div>
-          <div class="game-message" id="game-message" role="status" aria-live="polite"></div>
-          <div class="crosshair" id="crosshair" aria-hidden="true">＋</div>
-        </div>
-        <div class="world-footer"><span><span class="live-dot"></span><span id="world-state">СИСТЕМА АКТИВНА</span></span><span id="weather-caption">ВЕТЕР: СЕВЕРО-ЗАПАД · 4 М/С</span><span id="clock">--:--</span></div>
-      </div>
-
-      <aside class="side-panel">
-        <section class="panel-block character-block"><div class="panel-label">ПУТНИК <span id="player-rank">01</span></div><div class="portrait"><div class="portrait-silhouette"><span></span></div><div class="portrait-caption"><strong>Следопыт</strong><small id="player-status">Свободный сталкер</small></div></div>
-          <div class="stat"><div class="stat-label"><span>ЗДОРОВЬЕ</span><span id="health-value">100%</span></div><div class="bar health-bar"><i id="health-bar"></i></div></div>
-          <div class="stat"><div class="stat-label"><span>РАДИАЦИЯ</span><span id="radiation-value">0%</span></div><div class="bar radiation-bar"><i id="radiation-bar"></i></div></div>
-          <div class="cash-row"><span>НАЛИЧНЫЕ</span><strong id="cash-value">1 200 ₽</strong></div>
-        </section>
-        <section class="panel-block weapon-block"><div class="panel-label">ОРУЖИЕ</div><div class="weapon-readout"><span class="weapon-icon">⌁</span><div><strong id="weapon-name">ПМ</strong><small id="ammo-value">8 / 24</small></div><kbd>R</kbd></div><small class="weapon-help">Нажмите мышью по цели</small></section>
-        <section class="panel-block objective"><div class="panel-label">АКТИВНОЕ ЗАДАНИЕ <button class="text-button" id="journal-link" type="button">ЖУРНАЛ ↗</button></div><div class="objective-title"><span class="objective-icon">⌖</span><div><strong id="objective-title">Подойти к старой вышке</strong><small id="objective-description">Ориентир на востоке сектора</small></div></div><div class="objective-progress"><span id="objective-progress-bar"></span></div><small class="progress-caption" id="objective-status">ЦЕЛЬ АКТИВНА</small></section>
-        <section class="panel-block inventory-summary"><div class="panel-label">РЮКЗАК <span id="inventory-weight">0 / 24 кг</span></div><div class="inventory-summary-line" id="inventory-summary-line">Полевое снаряжение</div><button class="secondary-button" id="inventory-link" type="button">Открыть инвентарь <kbd>I</kbd></button></section>
-        <div class="side-note"><span>!</span><p id="field-note">В Зоне опасность редко предупреждает заранее.</p></div>
-      </aside>
-    </section>
-    <footer class="page-footer"><span>ZONE<span class="brand-dim">RPG</span> <span class="muted">· ВЕРТИКАЛЬНЫЙ СРЕЗ</span></span><span>WASD · E · I · J · R · ESC · ЛКМ: ВЫСТРЕЛ</span></footer>
-  </main>
-  <div id="overlay-root" hidden></div>
+  <div id="app" aria-live="polite"><noscript>Для игры включите JavaScript в браузере.</noscript></div>
 </body>
 </html>
