@@ -23,14 +23,14 @@
       magazines: {pm:8},
       reputation: {loners:5,bandits:-10,duty:0,freedom:0,military:-5,ecologists:0,mercs:0,mutants:-10,monolith:-25},
       quests: {active:[{id:'first_road',step:0,progress:0}],completed:[]},
-      known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], recentEvents:[], takenCaches:[], explores:{},explorationCount:0,knowledge:[],
+      known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], recentEvents:[], takenCaches:[], explores:{},explorationCount:0,explorationActive:false,knowledge:[],
       worldFlags:{documentsFound:false,stationOpen:false}, travelTo:null, event:null, combat:null,
       log:['Ты входишь в Зону. На Кордоне ещё можно передумать.'], rumors:[], settings:{scale:1,reduceMotion:false,music:true,sfx:true,volume:.35},
       statistics:{earnings:0,artifacts:0,kills:0,quests:0}
     };
   }
 
-  function sanitizeEvent(raw, world) {
+  function sanitizeEvent(raw, world, items) {
     if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string') return null;
     const isArrival = raw.id.startsWith('arrival_');
     const definition = isArrival ? null : world.events.find(event => event.id === raw.id);
@@ -50,6 +50,9 @@
       phase, origin, chain:[...(Array.isArray(sourceFlow.chain) ? sourceFlow.chain : [raw.id])].filter(id => typeof id === 'string' && (world.events.some(item => item.id === id) || id.startsWith('arrival_'))).slice(-8),
       visitedStages:unique((Array.isArray(sourceFlow.visitedStages) ? sourceFlow.visitedStages : [stageId]).filter(id => typeof id === 'string' && stages.some(item => item.id === id))).slice(-24),
       claimedActions:unique((Array.isArray(sourceFlow.claimedActions) ? sourceFlow.claimedActions : []).filter(id => typeof id === 'string' && id.length < 120)).slice(-40),
+      history:(Array.isArray(sourceFlow.history)?sourceFlow.history:[]).filter(x=>x&&typeof x.text==='string').slice(-8).map(x=>({text:x.text.slice(0,500),choice:typeof x.choice==='string'?x.choice.slice(0,100):''})),
+      rewards:sourceFlow.rewards&&typeof sourceFlow.rewards==='object'?{xp:clamp(sourceFlow.rewards.xp,0,99999,0),money:clamp(sourceFlow.rewards.money,0,999999,0),items:Array.isArray(sourceFlow.rewards.items)?sourceFlow.rewards.items.filter(x=>x&&typeof x.id==='string'&&items[x.id]).slice(0,20).map(x=>({id:x.id,name:items[x.id].name,qty:clamp(x.qty,1,99,1)})):[]}:null,
+      completionXP:clamp(sourceFlow.completionXP,0,99999,0),
       flags:sourceFlow.flags && typeof sourceFlow.flags === 'object' && !Array.isArray(sourceFlow.flags) ? sourceFlow.flags : {},
       pending:{nextStage,nextEvent,finish:pending.finish===true,winText:typeof pending.winText==='string'?pending.winText:'',fleeText:typeof pending.fleeText==='string'?pending.fleeText:''},
       resultText:typeof sourceFlow.resultText === 'string' ? sourceFlow.resultText : '',
@@ -135,6 +138,7 @@
     base.takenCaches=Array.isArray(input.takenCaches)?unique(input.takenCaches.filter(x=>typeof x==='string'&&x.length<80)):[];
     base.explores={};if(input.explores&&typeof input.explores==='object')for(const [id,n]of Object.entries(input.explores))if(world.locations[id])base.explores[id]=clamp(n,0,999999);
     base.explorationCount=clamp(input.explorationCount,Object.values(base.explores).reduce((sum,n)=>sum+n,0),999999,Object.values(base.explores).reduce((sum,n)=>sum+n,0));
+    base.explorationActive=Boolean(input.explorationActive);
     base.knowledge=Array.isArray(input.knowledge)?unique(input.knowledge.filter(x=>typeof x==='string').slice(-80)):[];
     base.rumors=Array.isArray(input.rumors)?input.rumors.filter(x=>x&&typeof x.text==='string').slice(-30):[];
     if(input.worldFlags&&typeof input.worldFlags==='object')for(const key of Object.keys(base.worldFlags))base.worldFlags[key]=Boolean(input.worldFlags[key]);
@@ -143,16 +147,16 @@
     if(input.statistics&&typeof input.statistics==='object')for(const key of Object.keys(base.statistics))base.statistics[key]=clamp(input.statistics[key],0,999999,0);
     base.log=Array.isArray(input.log)?input.log.filter(x=>typeof x==='string').slice(-10):base.log;
     base.travelTo=world.locations[input.travelTo]?input.travelTo:null;
-    base.event=sanitizeEvent(input.event,world);
+    base.event=sanitizeEvent(input.event,world,items);
     const rawCombat=input.combat;
     if(rawCombat&&typeof rawCombat==='object'&&world.enemyTypes[rawCombat.type]){
       const enemy=world.enemyTypes[rawCombat.type],savedEnemy=rawCombat.enemy&&typeof rawCombat.enemy==='object'?rawCombat.enemy:{};
       const maxHp=clamp(savedEnemy.maxHp,1,enemy.hp,enemy.hp);
-      base.combat={type:rawCombat.type,enemy:{...enemy,...savedEnemy,maxHp,hp:clamp(savedEnemy.hp,0,maxHp,enemy.hp)},aimed:Boolean(rawCombat.aimed),status:typeof rawCombat.status==='string'?rawCombat.status:'В БОЮ',turn:clamp(rawCombat.turn,1,999,1),log:Array.isArray(rawCombat.log)?rawCombat.log.filter(x=>typeof x==='string').slice(-6):[]};
+      base.combat={type:rawCombat.type,enemy:{...enemy,maxHp,hp:clamp(savedEnemy.hp,0,maxHp,enemy.hp)},intro:typeof rawCombat.intro==='string'?rawCombat.intro.slice(0,240):'',aimed:Boolean(rawCombat.aimed),status:typeof rawCombat.status==='string'?rawCombat.status:'В БОЮ',turn:clamp(rawCombat.turn,1,999,1),log:Array.isArray(rawCombat.log)?rawCombat.log.filter(x=>typeof x==='string').slice(-6):[]};
     }
     const modifiers={};for(const ref of slotNames.map(slot=>base.equipment[slot]).concat(base.equipment.artifacts)){const row=base.inventory.find(item=>(item.instanceId||item.id)===ref),fx=items[row?.id]?.effect||{};for(const [key,value]of Object.entries(fx))if(Number.isFinite(Number(value)))modifiers[key]=(modifiers[key]||0)+Number(value);}for(const [key,value]of Object.entries(base.temporaryModifiers))modifiers[key]=(modifiers[key]||0)+Number(value);
-    base.player.health=clamp(base.player.health,0,Math.max(1,base.baseStats.maxHealth+(modifiers.maxHealth||0)),defaults.health);
-    base.player.stamina=clamp(base.player.stamina,0,Math.max(1,base.baseStats.maxStamina+(modifiers.maxStamina||0)),defaults.stamina);
+    base.player.health=clamp(base.player.health,0,Math.max(1,base.baseStats.maxHealth+(modifiers.maxHealth||0)+(base.attributes.endurance-2)*2),defaults.health);
+    base.player.stamina=clamp(base.player.stamina,0,Math.max(1,base.baseStats.maxStamina+(modifiers.maxStamina||0)+(base.attributes.endurance-2)*2),defaults.stamina);
     if(base.combat){base.mode='combat';if(base.event?.flow)base.event.flow.phase='combat';}
     else if(base.event?.flow?.phase==='combat'){base.event.flow.phase='result';base.event.flow.resultText=base.event.flow.pending?.fleeText||base.event.flow.pending?.winText||'Сохранённый бой завершился. Ты возвращаешься к событию.';base.event.text=base.event.flow.resultText;base.event.choices=[{label:'Продолжить',action:'advance'}];base.mode='event';}
     else if(base.event)base.mode='event';

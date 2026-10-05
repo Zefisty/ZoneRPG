@@ -10,6 +10,7 @@
     ak:{name:'АКМ',damage:37,accuracy:.67,magazine:30,ammoType:'ammo762',reloadTime:2,fireRate:.78,critChance:.12,weaponClass:'rifle',price:5600,weight:3.8,range:'средняя'},
     vintar:{name:'Винтарь-ВС',damage:64,accuracy:.9,magazine:10,ammoType:'ammo9x39',reloadTime:2.2,fireRate:.48,critChance:.22,weaponClass:'sniper',price:12500,weight:3.7,range:'дальняя'},
     aps:{name:'АПС',damage:31,accuracy:.7,magazine:20,ammoType:'ammo918',reloadTime:1.5,fireRate:.88,critChance:.11,weaponClass:'pistol',price:2300,weight:1.2,range:'короткая'},
+    ppVityaz:{name:'ПП-19 «Витязь»',damage:25,accuracy:.74,magazine:30,ammoType:'ammo919',reloadTime:1.7,fireRate:.95,critChance:.09,weaponClass:'smg',price:5200,weight:3,range:'средняя'},
     huntingRifle:{name:'Охотничья винтовка',damage:46,accuracy:.8,magazine:5,ammoType:'ammo762',reloadTime:2,fireRate:.55,critChance:.16,weaponClass:'rifle',price:3900,weight:3.5,range:'средняя'}
   };
   const items = {
@@ -22,6 +23,7 @@
     ak:{name:'АКМ',type:'weapon',slot:'primary',description:'Мощная винтовка под 7.62×39.',price:5600,weight:3.8,stackable:false,effect:null,weaponId:'ak'},
     vintar:{name:'Винтарь-ВС',type:'weapon',slot:'primary',description:'Редкая бесшумная винтовка для дальнего боя.',price:12500,weight:3.7,stackable:false,effect:null,weaponId:'vintar'},
     aps:{name:'АПС',type:'weapon',slot:'sidearm',description:'Тяжёлый пистолет с вместительным магазином.',price:2300,weight:1.2,stackable:false,effect:null,weaponId:'aps'},
+    ppVityaz:{name:'ПП-19 «Витязь»',type:'weapon',slot:'primary',description:'Компактный пистолет-пулемёт под распространённый патрон 9×19.',price:5200,weight:3,stackable:false,effect:null,weaponId:'ppVityaz'},
     huntingRifle:{name:'Охотничья винтовка',type:'weapon',slot:'primary',description:'Точная пятизарядная винтовка для осторожных выстрелов.',price:3900,weight:3.5,stackable:false,effect:null,weaponId:'huntingRifle'},
     ammo918:{name:'Патроны 9×18',type:'ammo',description:'Боеприпасы для ПМ.',price:8,weight:.018,stackable:true,effect:{ammo:'pm',amount:8}},ammo919:{name:'Патроны 9×19',type:'ammo',description:'Боеприпасы 9×19 для Форт-12 и ПП-19 «Витязь».',price:12,weight:.02,stackable:true,effect:{ammo:'pistol19',amount:8}},ammo545:{name:'Патроны 5.45×39',type:'ammo',description:'Боеприпасы для АКС-74У.',price:16,weight:.025,stackable:true,effect:{ammo:'aksu',amount:10}},ammo762:{name:'Патроны 7.62×39',type:'ammo',description:'Тяжёлые патроны для АКМ.',price:20,weight:.03,stackable:true,effect:{ammo:'ak',amount:10}},ammo1270:{name:'Патроны 12×70',type:'ammo',description:'Дробь для охотничьего оружия.',price:14,weight:.045,stackable:true,effect:{ammo:'shotgun',amount:6}},ammo9x39:{name:'Патроны 9×39',type:'ammo',description:'Дозвуковой боеприпас для Винтаря.',price:30,weight:.035,stackable:true,effect:{ammo:'vintar',amount:5}},
     jacket:{name:'Куртка новичка',type:'armor',slot:'armor',description:'Почти не защищает, зато не мешает идти.',price:250,weight:2,effect:{protection:.05,radResist:.02,maxWeight:0}},leather:{name:'Кожаная куртка',type:'armor',slot:'armor',description:'Самодельная защита от когтей и осколков.',price:950,weight:4,effect:{protection:.13,radResist:.04,maxWeight:1}},vest:{name:'Бронежилет',type:'armor',slot:'armor',description:'Тяжёлый жилет с керамическими вставками.',price:3200,weight:8,effect:{protection:.34,radResist:.02,maxWeight:-2}},stalkerSuit:{name:'Костюм сталкера',type:'armor',slot:'armor',description:'Защищает от пуль и слабого фона.',price:5800,weight:7,effect:{protection:.22,radResist:.18,maxWeight:0}},armySuit:{name:'Армейский костюм',type:'armor',slot:'armor',description:'Усиленный костюм для опасных маршрутов.',price:9200,weight:10,effect:{protection:.39,radResist:.21,maxWeight:1}},exoskeleton:{name:'Экзоскелет',type:'armor',slot:'armor',description:'Мощная рама повышает грузоподъёмность.',price:24000,weight:16,effect:{protection:.62,radResist:.12,maxWeight:20}},
@@ -35,6 +37,31 @@
   };
   items.echoDetector={name:'Детектор «Отклик»',type:'detector',slot:'detector',rarity:'common',description:'Простой прибор помогает находить следы аномалий.',price:1800,weight:.8,stackable:false,effect:{artifactFindChance:.12}};
   items.svarog={name:'Детектор «Сварог»',type:'detector',slot:'detector',rarity:'rare',description:'Точный сканер повышает шанс найти артефакт и немного снижает радиационный фон.',price:7200,weight:1.2,stackable:false,effect:{artifactFindChance:.23,radResist:.04}};
+  const iconById={
+    knife:'knife',pm:'pistol',pistol19:'pistol',aps:'pistol-heavy',sawedoff:'shotgun',shotgun:'shotgun',aksu:'rifle',ak:'rifle',ppVityaz:'smg',vintar:'sniper',huntingRifle:'sniper',
+    ammo918:'ammo-pistol',ammo919:'ammo-pistol',ammo545:'ammo-rifle',ammo762:'ammo-rifle',ammo9x39:'ammo-rifle',ammo1270:'ammo-shells',
+    medkit:'medkit',bandage:'bandage',antirad:'antirad',canned:'canned',bread:'ration',water:'water',energy:'energy-drink',
+    jacket:'armor-light',leather:'armor-light',vest:'armor-vest',stalkerSuit:'armor-suit',armySuit:'armor-suit',exoskeleton:'armor-exo',
+    gasmask:'gas-mask',sealedHelmet:'helmet',fieldPack:'backpack',milPack:'backpack',echoDetector:'detector',svarog:'detector-pro',
+    jellyfish:'artifact-medusa',stoneflower:'artifact-stoneflower',meatchunk:'artifact-meatchunk',flash:'artifact-flash',gravi:'artifact-gravi',spark:'artifact-spark',nightstar:'artifact-nightstar',shell:'artifact-shell',fireball:'artifact-fireball',moonlight:'artifact-moonlight',battery:'artifact-battery',goldfish:'artifact-goldfish',soul:'artifact-soul',needle:'artifact-needle',bubble:'artifact-bubble',motherBeads:'artifact-beads',documents:'quest-document',tools:'tools',electronics:'electronics',parts:'parts',wires:'wires',valuables:'valuables'
+  };
+  const iconFallback=item=>{
+    if(item.slot==='melee')return 'knife';
+    if(item.slot==='sidearm'||item.weaponId&&weapons[item.weaponId]?.weaponClass==='pistol')return 'pistol';
+    if(item.weaponId){const cls=weapons[item.weaponId]?.weaponClass;return cls==='shotgun'?'shotgun':cls==='smg'?'smg':cls==='sniper'?'sniper':cls==='melee'?'knife':'rifle';}
+    if(item.type==='ammo')return item.effect?.ammo&&weapons[item.effect.ammo]?.weaponClass==='shotgun'?'ammo-shells':'ammo-rifle';
+    if(item.type==='medicine')return item.effect?.radiation?'antirad':item.effect?.health>=30?'medkit':'bandage';
+    if(item.type==='food')return item.name?.toLowerCase().includes('консерв')?'canned':'ration';
+    if(item.type==='drink')return item.name?.toLowerCase().includes('вод')?'water':'energy-drink';
+    if(item.type==='artifact')return item.rarity==='common'?'artifact-medusa':'artifact-rare';
+    if(item.slot==='armor'||item.type==='armor')return 'armor-suit';
+    if(item.slot==='head'||item.type==='headgear')return 'gas-mask';
+    if(item.slot==='backpack'||item.type==='backpack')return 'backpack';
+    if(item.slot==='detector'||item.type==='detector')return 'detector';
+    if(item.type==='quest')return 'quest-document';
+    return 'salvage';
+  };
+  for(const [id,item] of Object.entries(items))item.icon=iconById[id]||iconFallback(item);
   const armors=['jacket','leather','vest','stalkerSuit','armySuit','exoskeleton'];
-  window.ZoneRPGItems={items,weapons,armors};
+  window.ZoneRPGItems={items,weapons,armors,iconFallback};
 })();
