@@ -1,14 +1,30 @@
 (() => {
-  const VERSION = 6;
-  const LEGACY_VERSIONS = [2,3,4,5];
+  const VERSION = 7;
+  const LEGACY_VERSIONS = [2,3,4,5,6];
   const KEY = 'zonerpg-pda-save';
   const clamp = (value, min, max, fallback = 0) => Number.isFinite(Number(value))
     ? Math.max(min, Math.min(max, Number(value))) : fallback;
   const unique = values => [...new Set(values)];
 
-  function fresh() {
-    return {
-      version: VERSION,
+  const ATTRIBUTE_INFO={
+    strength:{name:'Сила',description:'Каждое очко выше 2 даёт +1,25 кг грузоподъёмности. Усиливает ближний бой и позволяет выполнять силовые действия.'},
+    agility:{name:'Ловкость',description:'Каждое очко выше 2 повышает точность и уклонение на 0,6 процентного пункта.'},
+    endurance:{name:'Выносливость',description:'Каждое очко выше 2 даёт +2 к максимуму здоровья и выносливости, снижает расход еды и воды на 3,5%.'},
+    perception:{name:'Восприятие',description:'Помогает обнаруживать опасность, находить артефакты и замечать дополнительные детали событий.'},
+    intelligence:{name:'Интеллект',description:'Открывает технические и аналитические варианты в событиях.'}
+  };
+  const MASTERY_NAMES={pistols:'Пистолеты',smg:'Пистолеты-пулемёты',rifles:'Винтовки',shotguns:'Дробовики',melee:'Ближний бой'};
+  const BACKGROUNDS={
+    rookie:{name:'Обычный новичок',description:'Нейтральный старт. Первую дорогу придётся изучить самому.',attributes:{},mastery:{},items:{}},
+    soldier:{name:'Бывший военный',description:'+1 Выносливость, владение пистолетами 5/100, 4 дополнительных патрона 9×18.',attributes:{endurance:1},mastery:{pistols:5},items:{ammo918:4}},
+    technician:{name:'Технарь',description:'+1 Интеллект и набор инструментов для механизмов и специальных действий.',attributes:{intelligence:1},mastery:{},items:{tools:1}},
+    hunter:{name:'Охотник',description:'+1 Восприятие, владение ближним боем 5/100 и кусок хлеба.',attributes:{perception:1},mastery:{melee:5},items:{bread:1}},
+    scavenger:{name:'Мародёр',description:'+1 Сила и набор деталей. Отношение одиночек на 3 ниже обычного старта.',attributes:{strength:1},mastery:{},items:{parts:1},reputation:{loners:-3}},
+    medic:{name:'Медик',description:'+1 Интеллект и дополнительная аптечка. В Зоне запас лекарств быстро заканчивается.',attributes:{intelligence:1},mastery:{},items:{medkit:1}}
+  };
+  function fresh(backgroundId='rookie') {
+    const state = {
+      version: VERSION, backgroundId:BACKGROUNDS[backgroundId]?backgroundId:'rookie',
       mode: 'menu',
       player: {health:100,maxHealth:100,stamina:100,maxStamina:100,hunger:14,thirst:12,radiation:0,money:620,rank:1,xp:0,kills:0,trips:0,artifacts:0,location:'cordon',time:8},
       attributes:{strength:2,agility:2,endurance:2,perception:2,intelligence:2},attributePoints:0,weaponMastery:{pistols:0,smg:0,rifles:0,shotguns:0,melee:0},
@@ -22,15 +38,22 @@
       equipment: {primary:null,sidearm:'item-2',melee:'item-1',armor:'item-3',head:null,backpack:'item-4',detector:null,activeWeaponSlot:'sidearm',weapon:'pm',artifacts:[]},
       magazines: {pm:8},
       reputation: {loners:5,bandits:-10,duty:0,freedom:0,military:-5,ecologists:0,mercs:0,mutants:-10,monolith:-25},
-      quests: {active:[{id:'first_road',step:0,progress:0}],completed:[]},
+      quests: {active:[{id:'first_road',step:0,progress:0,acceptedAtLocation:'cordon'}],completed:[]},
       known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], recentEvents:[], takenCaches:[], explores:{},explorationCount:0,explorationActive:false,knowledge:[],
       worldFlags:{documentsFound:false,stationOpen:false}, travelTo:null, event:null, combat:null,
       log:['Ты входишь в Зону. На Кордоне ещё можно передумать.'], rumors:[], settings:{scale:1,reduceMotion:false,music:true,sfx:true,volume:.35},
       statistics:{earnings:0,artifacts:0,kills:0,quests:0}
     };
+    const background=BACKGROUNDS[state.backgroundId];
+    for(const [key,n] of Object.entries(background.attributes))state.attributes[key]+=n;
+    Object.assign(state.weaponMastery,background.mastery);
+    for(const [id,qty] of Object.entries(background.items)){const existing=state.inventory.find(row=>row.id===id);if(existing)existing.qty+=qty;else state.inventory.push(window.ZoneRPGItems.items[id].stackable?{id,qty}:{id,qty,instanceId:'item-'+state.nextItemInstance++});}
+    for(const [key,n] of Object.entries(background.reputation||{}))state.reputation[key]+=n;
+    state.player.health=100+(state.attributes.endurance-2)*2;state.player.stamina=100+(state.attributes.endurance-2)*2;
+    return state;
   }
 
-  function sanitizeEvent(raw, world, items) {
+  function sanitizeEvent(raw, world, items, sourceVersion) {
     if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string') return null;
     const isArrival = raw.id.startsWith('arrival_');
     const definition = isArrival ? null : world.events.find(event => event.id === raw.id);
@@ -58,6 +81,10 @@
       resultText:typeof sourceFlow.resultText === 'string' ? sourceFlow.resultText : '',
       lastChoice:typeof sourceFlow.lastChoice === 'string' ? sourceFlow.lastChoice : ''
     };
+    if(sourceVersion<=6&&phase==='result'&&!flow.pending.nextStage&&!flow.pending.nextEvent&&stage){
+      const oldChoice=stage.choices.find(c=>c.label===flow.lastChoice);
+      if(oldChoice?.nextStage?.startsWith('review_')){flow.pending.nextStage=oldChoice.nextStage;flow.pending.finish=false;flow.completionXP=0;flow.flags['legacyEffects:'+oldChoice.nextStage]=true;}
+    }
     if (isArrival) return {id:raw.id,category:typeof raw.category==='string'?raw.category:'Локация',rarity:typeof raw.rarity==='string'?raw.rarity:'common',text:typeof raw.text==='string'?raw.text:'',choices:Array.isArray(raw.choices)?raw.choices.slice(0,4):[],flow};
     if (phase === 'result') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:flow.resultText || 'Ты решаешь продолжить путь.',choices:[{label:'Продолжить',action:'advance'}],flow};
     if (phase === 'combat') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:typeof raw.text==='string'?raw.text:stage.text,choices:[],flow};
@@ -67,6 +94,7 @@
   function sanitize(input, items, world) {
     const base = fresh();
     if (!input || typeof input !== 'object' || ![...LEGACY_VERSIONS,VERSION].includes(input.version)) return base;
+    base.backgroundId=BACKGROUNDS[input.backgroundId]?input.backgroundId:'rookie';
     const p = input.player && typeof input.player === 'object' ? input.player : {};
     const defaults = base.player;
     base.player = {...defaults,...p};
@@ -128,7 +156,7 @@
     base.reputation={...base.reputation,...(input.reputation||{})};
     for(const faction of Object.keys(base.reputation))base.reputation[faction]=clamp(base.reputation[faction],-100,100,0);
     base.quests={
-      active:Array.isArray(input.quests?.active)?input.quests.active.filter(q=>world.quests.some(def=>def.id===q.id)).map(q=>({id:q.id,step:clamp(q.step,0,5),progress:clamp(q.progress,0,99)})):base.quests.active,
+      active:Array.isArray(input.quests?.active)?input.quests.active.filter(q=>world.quests.some(def=>def.id===q.id)).map(q=>({id:q.id,step:clamp(q.step,0,5),progress:clamp(q.progress,0,999999),acceptedAtLocation:world.locations[q.acceptedAtLocation]?q.acceptedAtLocation:(Object.keys(world.locations).find(id=>world.locations[id].npcs.includes(world.quests.find(d=>d.id===q.id)?.giver))||null)})):base.quests.active,
       completed:Array.isArray(input.quests?.completed)?unique(input.quests.completed.filter(id=>world.quests.some(q=>q.id===id))):[]
     };
     base.known=Array.isArray(input.known)?unique(input.known.filter(id=>world.locations[id])):base.known;
@@ -145,9 +173,9 @@
     if(input.settings&&typeof input.settings==='object'){base.settings.scale=Number(input.settings.scale);base.settings.reduceMotion=Boolean(input.settings.reduceMotion);base.settings.music=input.settings.music!==false;base.settings.sfx=input.settings.sfx!==false;base.settings.volume=clamp(input.settings.volume,0,1,.35);}
     base.settings.scale=[1,1.1].includes(base.settings.scale)?base.settings.scale:1;
     if(input.statistics&&typeof input.statistics==='object')for(const key of Object.keys(base.statistics))base.statistics[key]=clamp(input.statistics[key],0,999999,0);
-    base.log=Array.isArray(input.log)?input.log.filter(x=>typeof x==='string').slice(-10):base.log;
+    base.log=Array.isArray(input.log)?input.log.filter(x=>typeof x==='string').slice(-10).map(text=>text.replace(/\b(strength|agility|endurance|perception|intelligence|pistols|smg|rifles|shotguns|melee|rifleMastery)\b/g,key=>ATTRIBUTE_INFO[key]?.name||MASTERY_NAMES[key]||'Владение винтовками')):base.log;
     base.travelTo=world.locations[input.travelTo]?input.travelTo:null;
-    base.event=sanitizeEvent(input.event,world,items);
+    base.event=sanitizeEvent(input.event,world,items,input.version);
     const rawCombat=input.combat;
     if(rawCombat&&typeof rawCombat==='object'&&world.enemyTypes[rawCombat.type]){
       const enemy=world.enemyTypes[rawCombat.type],savedEnemy=rawCombat.enemy&&typeof rawCombat.enemy==='object'?rawCombat.enemy:{};
@@ -166,5 +194,5 @@
     return base;
   }
 
-  window.ZoneRPGState={VERSION,LEGACY_VERSIONS,KEY,fresh,sanitize};
+  window.ZoneRPGState={VERSION,LEGACY_VERSIONS,KEY,BACKGROUNDS,ATTRIBUTE_INFO,MASTERY_NAMES,fresh,sanitize};
 })();
