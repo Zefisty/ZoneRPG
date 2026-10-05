@@ -8,7 +8,7 @@
     if(a==='travelPanel'){run('openPanel','map');return;}
     if(a==='close'){run('closePanel');return;}
     if(a==='save'){run('save');return;}if(a==='notebook'||a==='news'){run(a,v,x);return;}
-    if(a==='attack'||a==='aim'||a==='reload'||a==='flee'||a==='newGame'||a==='load'||a==='deleteSave'||a==='deletePrompt'||a==='acceptQuest'||a==='turnIn'||a==='event'||a==='eventReturn'||a==='travel'||a==='explore'||a==='use'||a==='equipGear'||a==='equipSlot'||a==='equipWeapon'||a==='equipArmor'||a==='unequipSlot'||a==='switchWeapon'||a==='artifact'||a==='drop'||a==='buy'||a==='sell'||a==='rest'||a==='mainMenu'||a==='resume'||a==='npcAction'){run(a,v,x);return;}
+    if(a==='attack'||a==='aim'||a==='reload'||a==='flee'||a==='newGame'||a==='load'||a==='deleteSave'||a==='deletePrompt'||a==='acceptQuest'||a==='turnIn'||a==='event'||a==='eventReturn'||a==='travel'||a==='explore'||a==='use'||a==='equipGear'||a==='equipSlot'||a==='equipWeapon'||a==='equipArmor'||a==='unequipSlot'||a==='switchWeapon'||a==='artifact'||a==='drop'||a==='buy'||a==='sell'||a==='rest'||a==='mainMenu'||a==='resume'||a==='npcAction'||a==='investAttribute'){run(a,v,x);return;}
     if(a==='combat'){if(v==='items')run('openPanel','combatItems');else if(v==='weapons')run('openPanel','combatWeapons');else if(v.startsWith('use:')){run('combatUse',v.slice(4));if(engine.getState().mode!=='dead')run('openPanel','combat');}else if(v.startsWith('weapon:')){run('equipWeapon',v.slice(7));run('openPanel','combat');}else run(v);return;}
     if(a==='saveInfo'){run('save');return;}
   }

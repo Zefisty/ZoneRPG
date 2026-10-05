@@ -1,6 +1,6 @@
 (() => {
-  const VERSION = 5;
-  const LEGACY_VERSIONS = [2,3,4];
+  const VERSION = 6;
+  const LEGACY_VERSIONS = [2,3,4,5];
   const KEY = 'zonerpg-pda-save';
   const clamp = (value, min, max, fallback = 0) => Number.isFinite(Number(value))
     ? Math.max(min, Math.min(max, Number(value))) : fallback;
@@ -11,6 +11,7 @@
       version: VERSION,
       mode: 'menu',
       player: {health:100,maxHealth:100,stamina:100,maxStamina:100,hunger:14,thirst:12,radiation:0,money:620,rank:1,xp:0,kills:0,trips:0,artifacts:0,location:'cordon',time:8},
+      attributes:{strength:2,agility:2,endurance:2,perception:2,intelligence:2},attributePoints:0,weaponMastery:{pistols:0,smg:0,rifles:0,shotguns:0,melee:0},
       baseStats:{maxHealth:100,maxStamina:100,maxCarryWeight:25},temporaryModifiers:{},
       inventory: [
         {id:'knife',qty:1,instanceId:'item-1'}, {id:'pm',qty:1,instanceId:'item-2'},
@@ -55,7 +56,7 @@
       lastChoice:typeof sourceFlow.lastChoice === 'string' ? sourceFlow.lastChoice : ''
     };
     if (isArrival) return {id:raw.id,category:typeof raw.category==='string'?raw.category:'Локация',rarity:typeof raw.rarity==='string'?raw.rarity:'common',text:typeof raw.text==='string'?raw.text:'',choices:Array.isArray(raw.choices)?raw.choices.slice(0,4):[],flow};
-    if (phase === 'result') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:flow.resultText || 'Ты решаешь продолжить путь.',choices:[{label:'Далее',action:'advance'}],flow};
+    if (phase === 'result') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:flow.resultText || 'Ты решаешь продолжить путь.',choices:[{label:'Продолжить',action:'advance'}],flow};
     if (phase === 'combat') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:typeof raw.text==='string'?raw.text:stage.text,choices:[],flow};
     return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:stage.text || definition.text || '',choices:Array.isArray(stage.choices)?stage.choices:[],flow};
   }
@@ -66,6 +67,11 @@
     const p = input.player && typeof input.player === 'object' ? input.player : {};
     const defaults = base.player;
     base.player = {...defaults,...p};
+    const attrs=input.attributes&&typeof input.attributes==='object'?input.attributes:{};
+    base.attributes={strength:clamp(attrs.strength,1,20,2),agility:clamp(attrs.agility,1,20,2),endurance:clamp(attrs.endurance,1,20,2),perception:clamp(attrs.perception,1,20,2),intelligence:clamp(attrs.intelligence,1,20,2)};
+    base.attributePoints=clamp(input.attributePoints,0,999,0);
+    const mastery=input.weaponMastery&&typeof input.weaponMastery==='object'?input.weaponMastery:{};
+    base.weaponMastery={pistols:clamp(mastery.pistols,0,100,0),smg:clamp(mastery.smg,0,100,0),rifles:clamp(mastery.rifles,0,100,0),shotguns:clamp(mastery.shotguns,0,100,0),melee:clamp(mastery.melee,0,100,0)};
     base.baseStats={maxHealth:clamp(input.baseStats?.maxHealth??p.maxHealth,60,250,defaults.maxHealth),maxStamina:clamp(input.baseStats?.maxStamina??p.maxStamina,50,150,defaults.maxStamina),maxCarryWeight:clamp(input.baseStats?.maxCarryWeight,8,120,25)};
     base.temporaryModifiers=input.temporaryModifiers&&typeof input.temporaryModifiers==='object'&&!Array.isArray(input.temporaryModifiers)?Object.fromEntries(Object.entries(input.temporaryModifiers).filter(([,v])=>Number.isFinite(Number(v)))):{};
     base.player.maxHealth=base.baseStats.maxHealth;
@@ -148,7 +154,7 @@
     base.player.health=clamp(base.player.health,0,Math.max(1,base.baseStats.maxHealth+(modifiers.maxHealth||0)),defaults.health);
     base.player.stamina=clamp(base.player.stamina,0,Math.max(1,base.baseStats.maxStamina+(modifiers.maxStamina||0)),defaults.stamina);
     if(base.combat){base.mode='combat';if(base.event?.flow)base.event.flow.phase='combat';}
-    else if(base.event?.flow?.phase==='combat'){base.event.flow.phase='result';base.event.flow.resultText=base.event.flow.pending?.fleeText||base.event.flow.pending?.winText||'Сохранённый бой завершился. Ты возвращаешься к событию.';base.event.text=base.event.flow.resultText;base.event.choices=[{label:'Далее',action:'advance'}];base.mode='event';}
+    else if(base.event?.flow?.phase==='combat'){base.event.flow.phase='result';base.event.flow.resultText=base.event.flow.pending?.fleeText||base.event.flow.pending?.winText||'Сохранённый бой завершился. Ты возвращаешься к событию.';base.event.text=base.event.flow.resultText;base.event.choices=[{label:'Продолжить',action:'advance'}];base.mode='event';}
     else if(base.event)base.mode='event';
     else base.mode='play';
     base.deathSummary=input.deathSummary&&typeof input.deathSummary==='object'?input.deathSummary:null;
