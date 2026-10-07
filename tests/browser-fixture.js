@@ -2,7 +2,7 @@
   const scenario=new URLSearchParams(location.search).get('scenario')||'route',key='zonerpg-test-'+scenario;
   const errors=[],warnings=[];
   window.ZoneRPGTest={scenario,errors,warnings};
-  const update=()=>{const el=document.getElementById('test-status');if(!el)return;let state={};try{const s=window.ZoneRPGEngine?.getState();if(s)state={location:s.player.location,travelTo:s.travelTo,event:s.event?.id,stage:s.event?.flow?.stageId,phase:s.event?.flow?.phase,weapon:s.activeWeapon?.item.name,magazine:s.activeWeapon?.magazine,reserve:s.activeWeapon?.reserve,enemy:s.combat?.type,money:s.player.money,background:s.backgroundId,stamina:s.player.stamina,quests:s.quests.active.map(q=>({id:q.id,progress:q.progress,acceptedAtLocation:q.acceptedAtLocation,ready:q.ready})),inventory:s.inventory.map(x=>x.id+':'+x.qty)};}catch(error){errors.push(String(error));}el.textContent=JSON.stringify({scenario,errors,warnings,...state},null,2);};
+  const update=()=>{const el=document.getElementById('test-status');if(!el)return;let state={};try{const s=window.ZoneRPGEngine?.getState();if(s)state={location:s.player.location,origin:s.explorationOriginLocationId,sessionDepth:s.explorationSessionDepth,xp:s.player.xp,claims:s.eventXPClaims,known:s.known,travelTo:s.travelTo,event:s.event?.id,stage:s.event?.flow?.stageId,phase:s.event?.flow?.phase,weapon:s.activeWeapon?.item.name,magazine:s.activeWeapon?.magazine,reserve:s.activeWeapon?.reserve,enemy:s.combat?.type,money:s.player.money,background:s.backgroundId,stamina:s.player.stamina,quests:s.quests.active.map(q=>({id:q.id,progress:q.progress,acceptedAtLocation:q.acceptedAtLocation,ready:q.ready})),inventory:s.inventory.map(x=>x.id+':'+x.qty)};}catch(error){errors.push(String(error));}el.textContent=JSON.stringify({scenario,errors,warnings,...state},null,2);};
   addEventListener('error',e=>{errors.push(e.message||'Resource error: '+(e.target?.src||e.target?.href||'unknown'));update();},true);
   addEventListener('unhandledrejection',e=>{errors.push(String(e.reason));update();});
   const warn=console.warn.bind(console);console.warn=(...args)=>{warnings.push(args.map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' '));warn(...args);update();};
@@ -20,14 +20,20 @@
       else if(scenario==='atlas'){s.known=Object.keys(ZoneRPGWorld.locations);s.visited=[...s.known];}
       else if(scenario==='tunnel'){s.player.location='southTunnel';}
       else if(scenario==='checkpoint'){s.player.location='checkpoint';}
+      else if(scenario==='background63'){Object.assign(s,ZoneRPGState.fresh('soldier'));const def=ZoneRPGWorld.events.find(e=>e.id==='npc_story_military'),stage=def.stages[0];s.event={id:def.id,category:def.category,text:stage.text,choices:stage.choices,flow:{version:1,stageId:stage.id,stageIndex:0,phase:'choices',origin:'event',chain:[def.id],visitedStages:[stage.id],claimedActions:[],history:[],flags:{},pending:null,resultText:'',lastChoice:''}};}
+      else if(scenario==='news63'){s.player.location='warehouses';}
+      else if(scenario==='quests63'){s.quests.active=ZoneRPGWorld.quests.map(q=>({id:q.id,step:0,progress:0}));}
+      else if(scenario.startsWith('session63-')){s.player.location=scenario.slice(10);s.explorationOriginLocationId=s.player.location;s.explorationSessionDepth=0;Math.random=()=>.99;}
+
       else if(scenario==='combat'){s.combat={type:'dog',enemy:{...ZoneRPGWorld.enemyTypes.dog,visual:'stalker',name:'Wrong old visual',hp:34,maxHp:34},aimed:false,turn:1,log:[]};}
       else{
-        const id={medicine:'event_8_5',food:'event_6_5',tools:'event_6_3',boar:'event_5_4',bandit:'event_4_2',tracks:'site_railway_2'}[scenario],def=ZoneRPGWorld.events.find(x=>x.id===id),stages=def.stages||[{id:'main',text:def.text,choices:def.choices}],stage=scenario==='medicine'?stages.find(x=>x.choices.some(c=>c.label.startsWith('Купить припасы'))):stages[0];
-        if(scenario==='tracks')s.player.location='railway';if(scenario==='bandit')s.player.location='checkpoint';s.event={id,category:def.category,text:stage.text,choices:stage.choices,flow:{version:1,stageId:stage.id,stageIndex:stages.indexOf(stage),phase:'choices',origin:'explore',chain:[id],visitedStages:[stage.id],claimedActions:[],history:[],flags:{},pending:null,resultText:'',lastChoice:''}};
+        const id={tool63a:'garbage_tagged_crate',tool63b:'agro_generator',tool63c:'valley_captive',mutant63:'v63_marshLeech',medicine:'event_8_5',food:'event_6_5',tools:'event_6_3',boar:'event_5_4',bandit:'event_4_2',tracks:'site_railway_2'}[scenario],def=ZoneRPGWorld.events.find(x=>x.id===id),stages=def.stages||[{id:'main',text:def.text,choices:def.choices}],stage=scenario==='medicine'?stages.find(x=>x.choices.some(c=>c.label.startsWith('Купить припасы'))):stages[0];
+        if(scenario.startsWith('tool63')){s.player.location=({tool63a:'garbage',tool63b:'agro',tool63c:'darkvalley'})[scenario];s.inventory.push({id:'tools',qty:1});s.attributes={strength:10,agility:10,endurance:10,perception:10,intelligence:10};}if(scenario==='tracks')s.player.location='railway';if(scenario==='bandit')s.player.location='checkpoint';s.event={id,category:def.category,text:stage.text,choices:stage.choices,flow:{version:1,stageId:stage.id,stageIndex:stages.indexOf(stage),phase:'choices',origin:'explore',chain:[id],visitedStages:[stage.id],claimedActions:[],history:[],flags:{},pending:null,resultText:'',lastChoice:''}};
       }
       ZoneRPGSave.write(s);
     }
   }
+  if(scenario.startsWith('session63-'))Math.random=()=>.99;
   window.ZoneRPGTest.update=update;
   addEventListener('DOMContentLoaded',()=>{ZoneRPGEngine.onChange(update);update();document.getElementById('reset-test').onclick=()=>{sessionStorage.removeItem(key);location.reload();};});
 })();

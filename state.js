@@ -1,6 +1,6 @@
 (() => {
-  const VERSION = 7;
-  const LEGACY_VERSIONS = [2,3,4,5,6];
+  const VERSION = 8;
+  const LEGACY_VERSIONS = [2,3,4,5,6,7];
   const KEY = 'zonerpg-pda-save';
   const clamp = (value, min, max, fallback = 0) => Number.isFinite(Number(value))
     ? Math.max(min, Math.min(max, Number(value))) : fallback;
@@ -22,6 +22,7 @@
     scavenger:{name:'Мародёр',description:'+1 Сила и набор деталей. Отношение одиночек на 3 ниже обычного старта.',attributes:{strength:1},mastery:{},items:{parts:1},reputation:{loners:-3}},
     medic:{name:'Медик',description:'+1 Интеллект и дополнительная аптечка. В Зоне запас лекарств быстро заканчивается.',attributes:{intelligence:1},mastery:{},items:{medkit:1}}
   };
+  Object.entries({"rookie":{"startLocation":"cordon","intro":"Ты проходишь через старый КПП с чужими советами и собственным пустым блокнотом. Сидорович обещал объяснить, какие дороги ещё не забрала Зона."},"soldier":{"startLocation":"checkpoint","reputation":{"military":8,"bandits":-3},"intro":"Прожектор блокпоста на мгновение задерживается на твоей старой форме. Сержант узнаёт знакомую выправку, но дальше периметра придётся рассчитывать на себя. Проверь магазин перед дорогой."},"technician":{"startLocation":"railway","reputation":{"ecologists":2},"intro":"Ты ночевал в ремонтном вагоне у старой железной дороги. Инструменты при тебе; Юра «Шпала» говорит, что под насыпью остался груз. Здесь твоим рукам найдётся работа."},"hunter":{"startLocation":"rookie","reputation":{"loners":2,"duty":2},"intro":"Утром ты выходишь из лесополосы к деревне новичков. На влажной земле ещё виден след ночного зверя. Лёха машет от костра: прежде чем идти дальше, стоит спросить о местных тропах."},"scavenger":{"startLocation":"garbage","reputation":{"loners":-3,"bandits":6},"intro":"На Свалке знаком каждый изгиб ржавой насыпи. Старые метки мародёров всё ещё указывают на укрытия, но одиночки помнят не только хорошие дела. Бармен предлагает начать с обычного поручения."},"medic":{"startLocation":"cordon","reputation":{"loners":4,"ecologists":2},"intro":"Мара встречает тебя у полевого перевязочного пункта. Дополнительная аптечка может спасти жизнь — свою или чужую. Сначала осмотрись, затем реши, кому сегодня нужна помощь."}}).forEach(([id,data])=>Object.assign(BACKGROUNDS[id],data));
   function fresh(backgroundId='rookie') {
     const state = {
       version: VERSION, backgroundId:BACKGROUNDS[backgroundId]?backgroundId:'rookie',
@@ -39,12 +40,16 @@
       magazines: {pm:8},
       reputation: {loners:5,bandits:-10,duty:0,freedom:0,military:-5,ecologists:0,mercs:0,mutants:-10,monolith:-25},
       quests: {active:[{id:'first_road',step:0,progress:0,acceptedAtLocation:'cordon'}],completed:[]},
-      known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], recentEvents:[], takenCaches:[], explores:{},explorationCount:0,explorationActive:false,knowledge:[],
+      known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], recentEvents:[], takenCaches:[], explores:{},explorationCount:0,explorationActive:false,explorationOriginLocationId:null,explorationSessionDepth:0,eventXPClaims:[],backgroundInteractions:[],knowledge:[],
       worldFlags:{documentsFound:false,stationOpen:false}, travelTo:null, event:null, combat:null,
       log:['Ты входишь в Зону. На Кордоне ещё можно передумать.'], rumors:[], settings:{scale:1,reduceMotion:false,music:true,sfx:true,volume:.35},
       statistics:{earnings:0,artifacts:0,kills:0,quests:0}
     };
     const background=BACKGROUNDS[state.backgroundId];
+    state.startingLocation=background.startLocation;state.initialReputationModifiers={...(background.reputation||{})};
+    state.player.location=background.startLocation;state.log=['Ты входишь в Зону. Начальный сектор: '+window.ZoneRPGWorld.locations[background.startLocation].name+'.'];state.visited=[background.startLocation];
+    state.known=[...new Set([background.startLocation,...window.ZoneRPGWorld.locations[background.startLocation].neighbors])];
+    state.quests.active[0].acceptedAtLocation=background.startLocation;
     for(const [key,n] of Object.entries(background.attributes))state.attributes[key]+=n;
     Object.assign(state.weaponMastery,background.mastery);
     for(const [id,qty] of Object.entries(background.items)){const existing=state.inventory.find(row=>row.id===id);if(existing)existing.qty+=qty;else state.inventory.push(window.ZoneRPGItems.items[id].stackable?{id,qty}:{id,qty,instanceId:'item-'+state.nextItemInstance++});}
@@ -161,6 +166,12 @@
     };
     base.known=Array.isArray(input.known)?unique(input.known.filter(id=>world.locations[id])):base.known;
     base.visited=Array.isArray(input.visited)?unique(input.visited.filter(id=>world.locations[id])):base.visited;
+    base.visited=unique([...base.visited,base.player.location]);
+    base.known=unique([...base.known,...base.visited,base.player.location]);
+    base.startingLocation=world.locations[input.startingLocation]?input.startingLocation:base.player.location;
+    base.initialReputationModifiers=input.initialReputationModifiers&&typeof input.initialReputationModifiers==='object'?Object.fromEntries(Object.entries(input.initialReputationModifiers).filter(([id,n])=>world.factions[id]&&Number.isFinite(n)).map(([id,n])=>[id,clamp(n,-20,20,0)])):{};
+    base.backgroundInteractions=Array.isArray(input.backgroundInteractions)?unique(input.backgroundInteractions.filter(x=>typeof x==='string'&&x.length<180)).slice(-1000):[];
+    base.eventXPClaims=Array.isArray(input.eventXPClaims)?unique(input.eventXPClaims.filter(x=>typeof x==='string'&&x.length<180)).slice(-10000):[];
     base.seenEvents=Array.isArray(input.seenEvents)?unique(input.seenEvents.filter(id=>world.events.some(event=>event.id===id))):[];
     base.recentEvents=Array.isArray(input.recentEvents)?input.recentEvents.filter(id=>typeof id==='string').slice(-8):[];
     base.takenCaches=Array.isArray(input.takenCaches)?unique(input.takenCaches.filter(x=>typeof x==='string'&&x.length<80)):[];
@@ -176,6 +187,10 @@
     base.log=Array.isArray(input.log)?input.log.filter(x=>typeof x==='string').slice(-10).map(text=>text.replace(/\b(strength|agility|endurance|perception|intelligence|pistols|smg|rifles|shotguns|melee|rifleMastery)\b/g,key=>ATTRIBUTE_INFO[key]?.name||MASTERY_NAMES[key]||'Владение винтовками')):base.log;
     base.travelTo=world.locations[input.travelTo]?input.travelTo:null;
     base.event=sanitizeEvent(input.event,world,items,input.version);
+    base.explorationActive=!base.travelTo&&(base.explorationActive||base.event?.flow?.origin==='explore');
+    base.explorationOriginLocationId=base.explorationActive?(world.locations[input.explorationOriginLocationId]?input.explorationOriginLocationId:base.player.location):null;
+    base.explorationSessionDepth=base.explorationActive?clamp(input.explorationSessionDepth,0,999999,base.explores[base.explorationOriginLocationId]||0):0;
+    if(base.explorationOriginLocationId){base.visited=unique([...base.visited,base.explorationOriginLocationId]);base.known=unique([...base.known,...base.visited]);}
     const rawCombat=input.combat;
     if(rawCombat&&typeof rawCombat==='object'&&world.enemyTypes[rawCombat.type]){
       const enemy=world.enemyTypes[rawCombat.type],savedEnemy=rawCombat.enemy&&typeof rawCombat.enemy==='object'?rawCombat.enemy:{};
