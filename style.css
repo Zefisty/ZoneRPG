@@ -38,3 +38,8 @@ body[data-event-rare=true] .event-card{border-color:#a58e58;box-shadow:0 0 30px 
 .faction-symbol{width:32px;height:32px;vertical-align:middle;image-rendering:pixelated}.preparation-note{font-size:12px;color:#b8c19a;border-left:2px solid #a8ad6b;padding-left:10px}
 
 .encyclopedia-portrait{width:96px;height:96px;object-fit:contain;float:right;image-rendering:pixelated}.journal-entry:after{content:"";display:block;clear:both}
+
+/* Stable global navigation and secondary PDA panels. */
+.menu-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}.menu-actions>button{width:100%;min-width:0;min-height:48px;margin:0;white-space:normal;overflow-wrap:anywhere}.action-dock{z-index:20}.dock-button{min-height:48px}.overlay-shade{padding-bottom:calc(106px + env(safe-area-inset-bottom))}.panel-window{max-height:calc(100dvh - 150px)}.map-travel-warning{padding:12px;border:1px solid #a08b48;border-radius:8px;color:#e2ce8a;background:#24271b}.dock-button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:720px){.overlay-shade{padding:12px 12px calc(98px + env(safe-area-inset-bottom))}.panel-window{max-height:calc(100dvh - 128px)}}
+@media(max-width:540px){.menu-actions{grid-template-columns:minmax(0,1fr);gap:10px}.dock-button{min-height:48px}}
