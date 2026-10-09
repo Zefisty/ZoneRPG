@@ -1,6 +1,6 @@
 (() => {
-  const VERSION = 8;
-  const LEGACY_VERSIONS = [2,3,4,5,6,7];
+  const VERSION = 9;
+  const LEGACY_VERSIONS = [2,3,4,5,6,7,8];
   const KEY = 'zonerpg-pda-save';
   const clamp = (value, min, max, fallback = 0) => Number.isFinite(Number(value))
     ? Math.max(min, Math.min(max, Number(value))) : fallback;
@@ -40,7 +40,7 @@
       magazines: {pm:8},
       reputation: {loners:5,bandits:-10,duty:0,freedom:0,military:-5,ecologists:0,mercs:0,mutants:-10,monolith:-25},
       quests: {active:[{id:'first_road',step:0,progress:0,acceptedAtLocation:'cordon'}],completed:[]},
-      known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], recentEvents:[], takenCaches:[], explores:{},explorationCount:0,explorationActive:false,explorationOriginLocationId:null,explorationSessionDepth:0,eventXPClaims:[],backgroundInteractions:[],knowledge:[],
+      known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], recentEvents:[], takenCaches:[], explores:{},expedition:window.ZoneRPGExpedition.empty(),lastExpedition:null,discoveredEnemies:[],discoveredArtifacts:[],npcMemory:{},factionMembership:null,worldClock:0,worldEvents:[],explorationCount:0,explorationActive:false,explorationOriginLocationId:null,explorationSessionDepth:0,eventXPClaims:[],backgroundInteractions:[],knowledge:[],
       worldFlags:{documentsFound:false,stationOpen:false}, travelTo:null, event:null, combat:null,
       log:['Ты входишь в Зону. На Кордоне ещё можно передумать.'], rumors:[], settings:{scale:1,reduceMotion:false,music:true,sfx:true,volume:.35},
       statistics:{earnings:0,artifacts:0,kills:0,quests:0}
@@ -49,7 +49,7 @@
     state.startingLocation=background.startLocation;state.initialReputationModifiers={...(background.reputation||{})};
     state.player.location=background.startLocation;state.log=['Ты входишь в Зону. Начальный сектор: '+window.ZoneRPGWorld.locations[background.startLocation].name+'.'];state.visited=[background.startLocation];
     state.known=[...new Set([background.startLocation,...window.ZoneRPGWorld.locations[background.startLocation].neighbors])];
-    state.quests.active[0].acceptedAtLocation=background.startLocation;
+    state.quests.active[0].acceptedAtLocation=background.startLocation;if(window.ZoneRPGWorld.quests.find(q=>q.id==='first_road').target===state.player.location)state.quests.active[0].step=1;
     for(const [key,n] of Object.entries(background.attributes))state.attributes[key]+=n;
     Object.assign(state.weaponMastery,background.mastery);
     for(const [id,qty] of Object.entries(background.items)){const existing=state.inventory.find(row=>row.id===id);if(existing)existing.qty+=qty;else state.inventory.push(window.ZoneRPGItems.items[id].stackable?{id,qty}:{id,qty,instanceId:'item-'+state.nextItemInstance++});}
@@ -91,7 +91,7 @@
       if(oldChoice?.nextStage?.startsWith('review_')){flow.pending.nextStage=oldChoice.nextStage;flow.pending.finish=false;flow.completionXP=0;flow.flags['legacyEffects:'+oldChoice.nextStage]=true;}
     }
     if (isArrival) return {id:raw.id,category:typeof raw.category==='string'?raw.category:'Локация',rarity:typeof raw.rarity==='string'?raw.rarity:'common',text:typeof raw.text==='string'?raw.text:'',choices:Array.isArray(raw.choices)?raw.choices.slice(0,4):[],flow};
-    if (phase === 'result') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:flow.resultText || 'Ты решаешь продолжить путь.',choices:[{label:'Продолжить',action:'advance'}],flow};
+    if (phase === 'result') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:flow.resultText || 'Ты решаешь продолжить путь.',choices:[{label:flow.pending.nextStage||flow.pending.nextEvent?'Следующий этап':'Продолжить',action:'advance'}],flow};
     if (phase === 'combat') return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:typeof raw.text==='string'?raw.text:stage.text,choices:[],flow};
     return {id:definition.id,category:definition.category,rarity:definition.rarity||'common',text:stage.text || definition.text || '',choices:Array.isArray(stage.choices)?stage.choices:[],flow};
   }
@@ -185,27 +185,39 @@
     base.settings.scale=[1,1.1].includes(base.settings.scale)?base.settings.scale:1;
     if(input.statistics&&typeof input.statistics==='object')for(const key of Object.keys(base.statistics))base.statistics[key]=clamp(input.statistics[key],0,999999,0);
     base.log=Array.isArray(input.log)?input.log.filter(x=>typeof x==='string').slice(-10).map(text=>text.replace(/\b(strength|agility|endurance|perception|intelligence|pistols|smg|rifles|shotguns|melee|rifleMastery)\b/g,key=>ATTRIBUTE_INFO[key]?.name||MASTERY_NAMES[key]||'Владение винтовками')):base.log;
+    for(const q of base.quests.active){const def=world.quests.find(x=>x.id===q.id);if(def?.type==='route'&&def.target===base.player.location)q.step=Math.max(q.step,1);}
     base.travelTo=world.locations[input.travelTo]?input.travelTo:null;
     base.event=sanitizeEvent(input.event,world,items,input.version);
     base.explorationActive=!base.travelTo&&(base.explorationActive||base.event?.flow?.origin==='explore');
     base.explorationOriginLocationId=base.explorationActive?(world.locations[input.explorationOriginLocationId]?input.explorationOriginLocationId:base.player.location):null;
     base.explorationSessionDepth=base.explorationActive?clamp(input.explorationSessionDepth,0,999999,base.explores[base.explorationOriginLocationId]||0):0;
     if(base.explorationOriginLocationId){base.visited=unique([...base.visited,base.explorationOriginLocationId]);base.known=unique([...base.known,...base.visited]);}
+    base.expedition=window.ZoneRPGExpedition.normalize(input.expedition,base,world);
+    window.ZoneRPGExpedition.project(base);
+    base.lastExpedition=input.lastExpedition?.originLocationId&&world.locations[input.lastExpedition.originLocationId]?window.ZoneRPGExpedition.normalize({...input.lastExpedition,active:true},{...base,travelTo:null},world):null;
+    if(base.lastExpedition)base.lastExpedition.active=false;
+    base.discoveredEnemies=Array.isArray(input.discoveredEnemies)?unique(input.discoveredEnemies.filter(id=>world.enemyTypes[id])):[];
+    base.discoveredArtifacts=unique([...(Array.isArray(input.discoveredArtifacts)?input.discoveredArtifacts.filter(id=>items[id]?.type==='artifact'):[]),...base.inventory.filter(x=>items[x.id]?.type==='artifact').map(x=>x.id)]);
+    base.npcMemory={};if(input.npcMemory&&typeof input.npcMemory==='object')for(const [id,m]of Object.entries(input.npcMemory))if(world.people[id]&&m&&typeof m==='object')base.npcMemory[id]={visits:clamp(m.visits,0,999999,0),lastSeen:clamp(m.lastSeen,0,999999,0)};
+    base.factionMembership=world.factions[input.factionMembership]?.joinable?input.factionMembership:null;
+    base.worldClock=clamp(input.worldClock,0,999999,0);
+    base.worldEvents=Array.isArray(input.worldEvents)?input.worldEvents.filter(x=>world.worldEvents?.some(d=>d.id===x.id)&&Number.isFinite(x.endsAt)&&x.endsAt>base.worldClock).map(x=>({id:x.id,endsAt:x.endsAt})).slice(-5):[];
     const rawCombat=input.combat;
     if(rawCombat&&typeof rawCombat==='object'&&world.enemyTypes[rawCombat.type]){
       const enemy=world.enemyTypes[rawCombat.type],savedEnemy=rawCombat.enemy&&typeof rawCombat.enemy==='object'?rawCombat.enemy:{};
-      const maxHp=clamp(savedEnemy.maxHp,1,enemy.hp,enemy.hp);
-      base.combat={type:rawCombat.type,enemy:{...enemy,maxHp,hp:clamp(savedEnemy.hp,0,maxHp,enemy.hp)},intro:typeof rawCombat.intro==='string'?rawCombat.intro.slice(0,240):'',aimed:Boolean(rawCombat.aimed),status:typeof rawCombat.status==='string'?rawCombat.status:'В БОЮ',turn:clamp(rawCombat.turn,1,999,1),log:Array.isArray(rawCombat.log)?rawCombat.log.filter(x=>typeof x==='string').slice(-6):[]};
+      const maxHp=clamp(savedEnemy.maxHp,1,Math.ceil(enemy.hp*1.3),enemy.hp);
+      base.combat={lootCollected:Boolean(rawCombat.lootCollected),scale:clamp(rawCombat.scale,1,1.3,1),type:rawCombat.type,enemy:{...enemy,damage:Math.ceil(enemy.damage*clamp(rawCombat.scale,1,1.3,1)),maxHp,hp:clamp(savedEnemy.hp,0,maxHp,enemy.hp)},intro:typeof rawCombat.intro==='string'?rawCombat.intro.slice(0,240):'',aimed:Boolean(rawCombat.aimed),status:typeof rawCombat.status==='string'?rawCombat.status:'В БОЮ',turn:clamp(rawCombat.turn,1,999,1),log:Array.isArray(rawCombat.log)?rawCombat.log.filter(x=>typeof x==='string').slice(-6):[]};
     }
     const modifiers={};for(const ref of slotNames.map(slot=>base.equipment[slot]).concat(base.equipment.artifacts)){const row=base.inventory.find(item=>(item.instanceId||item.id)===ref),fx=items[row?.id]?.effect||{};for(const [key,value]of Object.entries(fx))if(Number.isFinite(Number(value)))modifiers[key]=(modifiers[key]||0)+Number(value);}for(const [key,value]of Object.entries(base.temporaryModifiers))modifiers[key]=(modifiers[key]||0)+Number(value);
     base.player.health=clamp(base.player.health,0,Math.max(1,base.baseStats.maxHealth+(modifiers.maxHealth||0)+(base.attributes.endurance-2)*2),defaults.health);
     base.player.stamina=clamp(base.player.stamina,0,Math.max(1,base.baseStats.maxStamina+(modifiers.maxStamina||0)+(base.attributes.endurance-2)*2),defaults.stamina);
     if(base.combat){base.mode='combat';if(base.event?.flow)base.event.flow.phase='combat';}
-    else if(base.event?.flow?.phase==='combat'){base.event.flow.phase='result';base.event.flow.resultText=base.event.flow.pending?.fleeText||base.event.flow.pending?.winText||'Сохранённый бой завершился. Ты возвращаешься к событию.';base.event.text=base.event.flow.resultText;base.event.choices=[{label:'Продолжить',action:'advance'}];base.mode='event';}
+    else if(base.event?.flow?.phase==='combat'){base.event.flow.phase='result';base.event.flow.resultText=base.event.flow.pending?.fleeText||base.event.flow.pending?.winText||'Сохранённый бой завершился. Ты возвращаешься к событию.';base.event.text=base.event.flow.resultText;base.event.choices=[{label:base.event.flow.pending?.nextStage||base.event.flow.pending?.nextEvent?'Следующий этап':'Продолжить',action:'advance'}];base.mode='event';}
     else if(base.event)base.mode='event';
     else base.mode='play';
     base.deathSummary=input.deathSummary&&typeof input.deathSummary==='object'?input.deathSummary:null;
     base.panelReturn=null;
+    if(base.player.health<=0){base.mode='dead';base.combat=null;base.event=null;base.travelTo=null;base.expedition=window.ZoneRPGExpedition.empty();window.ZoneRPGExpedition.project(base);}
     return base;
   }
 

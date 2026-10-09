@@ -25,3 +25,16 @@ body[data-event-rare=true] .event-card{border-color:#a58e58;box-shadow:0 0 30px 
 
 /* v6.3: session and quest status explanations */
 .event-session{font-size:.8rem;color:var(--text-muted,#a8ad98);border-left:2px solid #788552;padding:.6rem .8rem;line-height:1.6}.quest-status{font-size:.8rem;color:#c3cf91}.background-card small{display:block;color:#b0ba99;line-height:1.6;margin-bottom:12px}.background-card{display:flex;flex-direction:column}.background-card button{margin-top:auto}.event-copy{white-space:pre-line}
+
+/* v7: expedition decisions remain equal and readable on narrow PDA screens. */
+.event-result-actions{display:flex;align-items:stretch;gap:10px}
+.event-result-actions>.choice-button{flex:1;width:0;min-height:52px;margin:0;padding:12px 8px}
+.faction-card{border:1px solid #51583e;padding:16px;margin-bottom:12px;background:#171f18}
+.faction-card h3{color:#c6ce85;margin-top:0}
+.zone-map{min-height:640px}
+.zone-map .map-node{width:17%;max-width:150px;font-size:11px}
+@media(max-width:600px){.zone-map{min-height:0}.zone-map .map-node{width:auto;max-width:none;font-size:12px}.event-result-actions>.choice-button{font-size:12px}}
+
+.faction-symbol{width:32px;height:32px;vertical-align:middle;image-rendering:pixelated}.preparation-note{font-size:12px;color:#b8c19a;border-left:2px solid #a8ad6b;padding-left:10px}
+
+.encyclopedia-portrait{width:96px;height:96px;object-fit:contain;float:right;image-rendering:pixelated}.journal-entry:after{content:"";display:block;clear:both}

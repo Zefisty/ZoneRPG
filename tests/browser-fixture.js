@@ -16,7 +16,12 @@
     Math.random=()=>.4;
     if(!ZoneRPGSave.has()){
       const s=ZoneRPGState.fresh();
-      if(scenario==='stamina'){s.player.location='wild';s.player.stamina=0;s.player.money=0;}
+      if(scenario.startsWith('v7-')){
+        const loc=scenario==='v7-factions'?'dutyFort':scenario==='v7-research'?'researchCamp':'garbage';
+        s.player.location=loc;s.player.rank=3;s.reputation.duty=20;s.reputation.ecologists=20;s.known=Object.keys(ZoneRPGWorld.locations);
+        s.inventory.push({id:'energy',qty:12},{id:'water',qty:4},{id:'ration7',qty:3},{id:'probe7',qty:4});
+        if(scenario==='v7-expedition'){Math.random=()=>.99;}
+      }else if(scenario==='stamina'){s.player.location='wild';s.player.stamina=0;s.player.money=0;}
       else if(scenario==='atlas'){s.known=Object.keys(ZoneRPGWorld.locations);s.visited=[...s.known];}
       else if(scenario==='tunnel'){s.player.location='southTunnel';}
       else if(scenario==='checkpoint'){s.player.location='checkpoint';}
