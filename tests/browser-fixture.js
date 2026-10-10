@@ -16,7 +16,9 @@
     Math.random=()=>.4;
     if(!ZoneRPGSave.has()){
       const s=ZoneRPGState.fresh();
-      if(scenario.startsWith('v8-')){
+      if(scenario==='v81-rumors'){
+        Math.random=()=>.99;s.known=Object.keys(ZoneRPGWorld.locations);s.knowledge=['rumor:cordon','camp news cordon','npc-met:sidorovich','v63 ironBoar observed'];
+      }else if(scenario.startsWith('v8-')){
         const bg=scenario.split('-').at(-1);Object.assign(s,ZoneRPGState.fresh(ZoneRPGState.BACKGROUNDS[bg]?bg:'soldier'));s.known=Object.keys(ZoneRPGWorld.locations);
         if(scenario==='v8-old'){s.version=10;delete s.personalStory;s.player.location='warehouses';s.player.rank=4;s.player.money=4500;s.quests.completed=['first_road'];}
         else{const a=window.ZoneRPGStories.arcs[s.backgroundId];if(scenario.includes('middle')){s.quests.completed=a.quests.slice(0,3);s.personalStory.completedSteps=[...s.quests.completed];s.personalStory.currentChapter=3;s.personalStory.currentQuest=a.quests[3];for(const id of s.quests.completed)s.personalStory.importantChoices[id]='a';s.personalStory.rewards=['personal_'+s.backgroundId+'_memo'];s.inventory.push({id:'personal_'+s.backgroundId+'_memo',qty:1});}s.player.location=a.chapters[s.personalStory.currentChapter][1];s.inventory.push({id:'energy',qty:4},{id:'medkit',qty:3},{id:'ammo918',qty:40},{id:'tools',qty:1});}

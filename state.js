@@ -1,6 +1,6 @@
 (() => {
-  const VERSION = 11;
-  const LEGACY_VERSIONS = [2,3,4,5,6,7,8,9,10];
+  const VERSION = 12;
+  const LEGACY_VERSIONS = [2,3,4,5,6,7,8,9,10,11];
   const KEY = 'zonerpg-pda-save';
   const clamp = (value, min, max, fallback = 0) => Number.isFinite(Number(value))
     ? Math.max(min, Math.min(max, Number(value))) : fallback;
@@ -47,12 +47,12 @@
       quests: {active:[{id:'first_road',step:0,progress:0,searchAttempts:0,acceptedAtLocation:'cordon'}],completed:[]},
       known:['cordon','rookie','checkpoint','garbage'], visited:['cordon'], seenEvents:[], recentEvents:[], takenCaches:[], explores:{},expedition:window.ZoneRPGExpedition.empty(),lastExpedition:null,discoveredEnemies:[],discoveredArtifacts:[],npcMemory:{},factionMembership:null,worldClock:0,worldEvents:[],explorationCount:0,explorationActive:false,explorationOriginLocationId:null,explorationSessionDepth:0,eventXPClaims:[],backgroundInteractions:[],knowledge:[],
       worldFlags:{documentsFound:false,stationOpen:false,hatchOpened:false,pigGiftClaimed:false}, travelTo:null, event:null, combat:null,
-      log:['Ты входишь в Зону. На Кордоне ещё можно передумать.'], rumors:[], settings:{scale:1,reduceMotion:false,music:true,sfx:true,volume:.35,autoTurnInQuests:false},
+      log:['Ты входишь в Зону. На Кордоне ещё можно передумать.'], rumors:[], heardRumors:[], rumorVisit:{location:'cordon',heard:false}, settings:{scale:1,reduceMotion:false,music:true,sfx:true,volume:.35,autoTurnInQuests:false},
       statistics:{earnings:0,artifacts:0,kills:0,quests:0}
     };
     const background=BACKGROUNDS[state.backgroundId];state.attributePoints=background.points||0;
     state.startingLocation=background.startLocation;state.initialReputationModifiers={...(background.reputation||{})};if(state.backgroundId==='rookie'){state.reputation.loners=0;state.reputation.bandits=0;state.reputation.military=0;}
-    state.player.location=background.startLocation;state.log=['Ты входишь в Зону. Начальный сектор: '+window.ZoneRPGWorld.locations[background.startLocation].name+'.'];state.visited=[background.startLocation];
+    state.player.location=background.startLocation;state.rumorVisit.location=background.startLocation;state.log=['Ты входишь в Зону. Начальный сектор: '+window.ZoneRPGWorld.locations[background.startLocation].name+'.'];state.visited=[background.startLocation];
     state.known=[...new Set([background.startLocation,...window.ZoneRPGWorld.locations[background.startLocation].neighbors])];
     state.quests.active[0].acceptedAtLocation=background.startLocation;if(window.ZoneRPGWorld.quests.find(q=>q.id==='first_road').target===state.player.location)state.quests.active[0].step=1;
     for(const [key,n] of Object.entries(background.attributes))state.attributes[key]+=n;
@@ -185,7 +185,8 @@
     base.explorationCount=clamp(input.explorationCount,Object.values(base.explores).reduce((sum,n)=>sum+n,0),999999,Object.values(base.explores).reduce((sum,n)=>sum+n,0));
     base.explorationActive=Boolean(input.explorationActive);
     base.knowledge=Array.isArray(input.knowledge)?unique(input.knowledge.filter(x=>typeof x==='string').slice(-80)):[];
-    base.rumors=Array.isArray(input.rumors)?input.rumors.filter(x=>x&&typeof x.text==='string').slice(-30):[];
+    base.rumors=Array.isArray(input.rumors)?input.rumors.map(window.ZoneRPGKnowledge.record).filter(Boolean):[];
+    base.heardRumors=window.ZoneRPGKnowledge.heard(input.heardRumors,base.rumors,base.knowledge);
     if(input.worldFlags&&typeof input.worldFlags==='object')for(const key of Object.keys(base.worldFlags))base.worldFlags[key]=Boolean(input.worldFlags[key]);
     if(input.settings&&typeof input.settings==='object'){base.settings.scale=Number(input.settings.scale);base.settings.reduceMotion=Boolean(input.settings.reduceMotion);base.settings.music=input.settings.music!==false;base.settings.sfx=input.settings.sfx!==false;base.settings.volume=clamp(input.settings.volume,0,1,.35);base.settings.autoTurnInQuests=input.settings.autoTurnInQuests===true;}
     base.settings.scale=[1,1.1].includes(base.settings.scale)?base.settings.scale:1;
@@ -201,6 +202,8 @@
     if(base.explorationOriginLocationId){base.visited=unique([...base.visited,base.explorationOriginLocationId]);base.known=unique([...base.known,...base.visited]);}
     base.expedition=window.ZoneRPGExpedition.normalize(input.expedition,base,world);
     window.ZoneRPGExpedition.project(base);
+    const visitLocation=base.expedition.active?base.expedition.originLocationId:base.player.location;
+    base.rumorVisit={location:visitLocation,heard:input.rumorVisit?.location===visitLocation&&input.rumorVisit.heard===true};
     base.lastExpedition=input.lastExpedition?.originLocationId&&world.locations[input.lastExpedition.originLocationId]?window.ZoneRPGExpedition.normalize({...input.lastExpedition,active:true},{...base,travelTo:null},world):null;
     if(base.lastExpedition)base.lastExpedition.active=false;
     base.discoveredEnemies=Array.isArray(input.discoveredEnemies)?unique(input.discoveredEnemies.filter(id=>world.enemyTypes[id])):[];
