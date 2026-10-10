@@ -43,3 +43,7 @@ body[data-event-rare=true] .event-card{border-color:#a58e58;box-shadow:0 0 30px 
 .menu-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}.menu-actions>button{width:100%;min-width:0;min-height:48px;margin:0;white-space:normal;overflow-wrap:anywhere}.action-dock{z-index:20}.dock-button{min-height:48px}.overlay-shade{padding-bottom:calc(106px + env(safe-area-inset-bottom))}.panel-window{max-height:calc(100dvh - 150px)}.map-travel-warning{padding:12px;border:1px solid #a08b48;border-radius:8px;color:#e2ce8a;background:#24271b}.dock-button:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:720px){.overlay-shade{padding:12px 12px calc(98px + env(safe-area-inset-bottom))}.panel-window{max-height:calc(100dvh - 128px)}}
 @media(max-width:540px){.menu-actions{grid-template-columns:minmax(0,1fr);gap:10px}.dock-button{min-height:48px}}
+
+/* v7.2: compact dock only; More retains its 48px menu targets. */
+.action-dock .dock-button{min-height:36px;padding-top:6px;padding-bottom:6px;gap:3px}
+@media(max-width:720px){.action-dock .dock-button{min-height:44px;padding-top:4px;padding-bottom:4px;gap:2px}}

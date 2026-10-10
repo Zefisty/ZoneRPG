@@ -16,7 +16,14 @@
     Math.random=()=>.4;
     if(!ZoneRPGSave.has()){
       const s=ZoneRPGState.fresh();
-      if(scenario.startsWith('v7-')){
+      if(scenario.startsWith('v72-')){
+        s.known=Object.keys(ZoneRPGWorld.locations);
+        if(scenario==='v72-pig'){Object.assign(s,ZoneRPGState.fresh('soldier'));s.player.stamina=40;}
+        else if(scenario==='v72-quests'){s.player.location='yantar';s.player.money=0;s.quests.active=[{id:'field_samples',progress:0,step:0},{id:'field_notes',progress:0,step:0,searchAttempts:0}];Math.random=()=>.99;}
+        else if(scenario==='v72-turnin'){s.player.location='cordon';s.quests.active=[{id:'first_road',progress:0,step:1}];}
+        else if(scenario==='v72-knife'){s.equipment.activeWeaponSlot='melee';s.combat={type:'boar',enemy:{...ZoneRPGWorld.enemyTypes.boar,hp:25,maxHp:ZoneRPGWorld.enemyTypes.boar.hp},aimed:false,turn:1,log:[]};Math.random=()=>0;}
+        else if(scenario==='v72-hatch'){s.player.location='machineYard';s.inventory.push({id:'tools',qty:1});const def=ZoneRPGWorld.events.find(e=>e.id==='v61_yard_mechanic'),stage=def.stages.find(x=>x.id==='follow');s.event={id:def.id,category:def.category,text:stage.text,choices:stage.choices,flow:{version:1,stageId:stage.id,stageIndex:1,phase:'choices',origin:'event',chain:[def.id],visitedStages:[stage.id],claimedActions:[],history:[],flags:{},pending:null,resultText:'',lastChoice:''}};}
+      }else if(scenario.startsWith('v7-')){
         const loc=scenario==='v7-factions'?'dutyFort':scenario==='v7-research'?'researchCamp':'garbage';
         s.player.location=loc;s.player.rank=3;s.reputation.duty=20;s.reputation.ecologists=20;s.known=Object.keys(ZoneRPGWorld.locations);
         s.inventory.push({id:'energy',qty:12},{id:'water',qty:4},{id:'ration7',qty:3},{id:'probe7',qty:4});

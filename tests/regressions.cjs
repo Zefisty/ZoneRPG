@@ -4,7 +4,7 @@ function runtime(){
   const store=new Map(),warnings=[],errors=[],root={innerHTML:'',dataset:{}},body={dataset:{},classList:{add(){},remove(){}}};let clock=0;
   const math=Object.create(Math);math.random=()=>.4;
   const ctx={window:{},document:{getElementById:()=>root,body,documentElement:{style:{setProperty(){}}}},localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)},Math:math,performance:{now:()=>clock+=250},setTimeout:()=>1,clearTimeout(){},console:{warn:(...x)=>warnings.push(x),error:(...x)=>errors.push(x),log(){}}};
-  vm.createContext(ctx);for(const file of ['items.js','world.js','content-v7.js','expedition.js','state.js','save.js','engine.js','ui.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,file),'utf8'),ctx,{filename:file});
+  vm.createContext(ctx);for(const file of ['items.js','world.js','content-v7.js','content-v72.js','expedition.js','state.js','save.js','engine.js','ui.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,file),'utf8'),ctx,{filename:file});
   const {ZoneRPGState:S,ZoneRPGEngine:E,ZoneRPGWorld:W,ZoneRPGItems:I,ZoneRPGSave:Save,ZoneRPGUI:UI}=ctx.window;
   E.onChange(()=>UI.render(E.getState()));
   return{ctx,S,E,W,I,Save,root,store,warnings,errors,load(s){Save.write(s);E.action('load');return E.getState();}};
@@ -32,7 +32,7 @@ test('PM, knife, empty slots: display uses same weapon as attack/reload/save',()
  const r=runtime(),s=r.S.fresh();s.combat={type:'dog',enemy:{...r.W.enemyTypes.dog,hp:34,maxHp:34,name:'Wrong stalker',visual:'stalker'},aimed:false,turn:1,log:[]};r.load(s);
  assert.equal(r.E.getState().combat.enemy.visual,'dog');assert.match(r.root.innerHTML,/enemy-dog\.svg/);assert.match(r.root.innerHTML,/ОРУЖИЕ · ПМ · 8\/8 · запас 28/);
  r.E.action('attack');assert.equal(r.E.getState().magazines.pm,7);assert.match(r.root.innerHTML,/ПМ · 7\/8 · запас 28/);r.E.action('reload');assert.equal(r.E.getState().magazines.pm,8);assert.equal(qty(r.E.getState(),'ammo918'),27);assert.match(r.root.innerHTML,/ПМ · 8\/8 · запас 27/);
- r.E.action('equipWeapon','knife');assert.equal(r.E.getState().activeWeapon.id,'knife');assert.match(r.root.innerHTML,/ОРУЖИЕ · Охотничий нож · 0\/—/);r.E.action('save');r.E.action('load');assert.equal(r.E.getState().activeWeapon.id,'knife');
+ r.E.action('equipWeapon','knife');assert.equal(r.E.getState().activeWeapon.id,'knife');assert.match(r.root.innerHTML,/ОРУЖИЕ · Охотничий нож · ближний бой/);r.E.action('save');r.E.action('load');assert.equal(r.E.getState().activeWeapon.id,'knife');
  r.E.action('unequipSlot','melee');r.E.action('unequipSlot','sidearm');r.E.action('unequipSlot','primary');assert.equal(r.E.getState().activeWeapon,null);assert.match(r.root.innerHTML,/Без оружия/);const hp=r.E.getState().player.health;r.E.action('attack');assert.equal(r.E.getState().player.health,hp);
 });
 test('All saved enemy types keep canonical visuals/stats; local sprites exist',()=>{
