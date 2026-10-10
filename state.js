@@ -1,6 +1,6 @@
 (() => {
-  const VERSION = 10;
-  const LEGACY_VERSIONS = [2,3,4,5,6,7,8,9];
+  const VERSION = 11;
+  const LEGACY_VERSIONS = [2,3,4,5,6,7,8,9,10];
   const KEY = 'zonerpg-pda-save';
   const clamp = (value, min, max, fallback = 0) => Number.isFinite(Number(value))
     ? Math.max(min, Math.min(max, Number(value))) : fallback;
@@ -60,6 +60,7 @@
     for(const [id,qty] of Object.entries(background.items)){const existing=state.inventory.find(row=>row.id===id);if(existing)existing.qty+=qty;else state.inventory.push(window.ZoneRPGItems.items[id].stackable?{id,qty}:{id,qty,instanceId:'item-'+state.nextItemInstance++});}
     for(const [key,n] of Object.entries(background.reputation||{}))state.reputation[key]+=n;
     state.player.health=100+(state.attributes.endurance-2)*2;state.player.stamina=100+(state.attributes.endurance-2)*2;
+    state.personalStory=window.ZoneRPGStories.fresh(state.backgroundId);
     return state;
   }
 
@@ -191,6 +192,7 @@
     if(input.statistics&&typeof input.statistics==='object')for(const key of Object.keys(base.statistics))base.statistics[key]=clamp(input.statistics[key],0,999999,0);
     base.log=Array.isArray(input.log)?input.log.filter(x=>typeof x==='string').slice(-10).map(text=>text.replace(/\b(strength|agility|endurance|perception|intelligence|pistols|smg|rifles|shotguns|melee|rifleMastery)\b/g,key=>ATTRIBUTE_INFO[key]?.name||MASTERY_NAMES[key]||'Владение винтовками')):base.log;
     for(const q of base.quests.active){const def=world.quests.find(x=>x.id===q.id);if(def?.type==='route'&&def.target===base.player.location)q.step=Math.max(q.step,1);}
+    base.personalStory=window.ZoneRPGStories.normalize(input.personalStory,base.backgroundId,Number(input.worldClock)||0,base.quests.completed,input.version<11);
     base.travelTo=world.locations[input.travelTo]?input.travelTo:null;
     base.event=sanitizeEvent(input.event,world,items,input.version);
     base.explorationActive=!base.travelTo&&(base.explorationActive||base.event?.flow?.origin==='explore');

@@ -47,3 +47,6 @@ body[data-event-rare=true] .event-card{border-color:#a58e58;box-shadow:0 0 30px 
 /* v7.2: compact dock only; More retains its 48px menu targets. */
 .action-dock .dock-button{min-height:36px;padding-top:6px;padding-bottom:6px;gap:3px}
 @media(max-width:720px){.action-dock .dock-button{min-height:44px;padding-top:4px;padding-bottom:4px;gap:2px}}
+
+/* Personal stories inherit the PDA layout and touch targets. */
+.story-hint,.story-summary{padding:12px;border:1px solid #677456;background:#1c271d;margin:8px 0;overflow-wrap:anywhere}.story-hint .secondary-button{width:100%;margin-top:8px}.story-theme{color:#d1c48b}.story-person{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #394735}.story-person img{width:48px;height:60px;image-rendering:pixelated}.story-person div{min-width:0;overflow-wrap:anywhere}.story-decisions{padding-left:20px;overflow-wrap:anywhere}.story-decisions li{margin-bottom:8px}

@@ -4,7 +4,7 @@ function runtime(){
   const store=new Map(),warnings=[],errors=[],root={innerHTML:'',dataset:{}},body={dataset:{},classList:{add(){},remove(){}}};let clock=0;
   const math=Object.create(Math);math.random=()=>.4;
   const ctx={window:{},document:{getElementById:()=>root,body,documentElement:{style:{setProperty(){}}}},localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)},Math:math,performance:{now:()=>clock+=250},setTimeout:()=>1,clearTimeout(){},console:{warn:(...x)=>warnings.push(x),error:(...x)=>errors.push(x),log(){}}};
-  vm.createContext(ctx);for(const file of ['items.js','world.js','content-v7.js','content-v72.js','expedition.js','state.js','save.js','engine.js','ui.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,file),'utf8'),ctx,{filename:file});
+  vm.createContext(ctx);for(const file of ['items.js','world.js','content-v7.js','content-v72.js','personal-stories.js','expedition.js','state.js','save.js','engine.js','ui.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,file),'utf8'),ctx,{filename:file});
   const {ZoneRPGState:S,ZoneRPGEngine:E,ZoneRPGWorld:W,ZoneRPGItems:I,ZoneRPGSave:Save,ZoneRPGUI:UI}=ctx.window;
   E.onChange(()=>UI.render(E.getState()));
   return{ctx,S,E,W,I,Save,root,store,warnings,errors,load(s){Save.write(s);E.action('load');return E.getState();}};
